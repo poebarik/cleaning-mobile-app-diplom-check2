@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_snackbar.dart';
 import '../../../shared/widgets/custom_text_field.dart';
+import '../../../shared/widgets/image_uploader.dart';
 import '../../../core/utils/validators.dart';
-import '../../../shared/widgets/custom_snackbar.dart';
 import '../../../routes/route_names.dart';
-import '../../../data/network/dio_client.dart';
-import '../../../core/constants/api_constants.dart';
+import '../../../data/repositories/order_repository.dart';
+import '../../../data/models/order/unified_order_request.dart';
 
 class CreateMarketplaceOrderScreen extends ConsumerStatefulWidget {
   const CreateMarketplaceOrderScreen({super.key});
@@ -23,8 +23,9 @@ class _CreateMarketplaceOrderScreenState extends ConsumerState<CreateMarketplace
   final _descriptionController = TextEditingController();
   final _budgetController = TextEditingController();
   final _deadlineDaysController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
+  List<String> _uploadedImages = [];
   bool _isLoading = false;
 
   final List<Map<String, dynamic>> _services = [
@@ -40,7 +41,7 @@ class _CreateMarketplaceOrderScreenState extends ConsumerState<CreateMarketplace
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().add(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 90)),
     );
     if (picked != null && picked != _selectedDate) {
@@ -69,37 +70,32 @@ class _CreateMarketplaceOrderScreenState extends ConsumerState<CreateMarketplace
       });
 
       try {
-        final orderData = {
-          'serviceId': _selectedServiceId,
-          'address': _addressController.text,
-          'orderDate': DateTime(
+        final orderRequest = UnifiedOrderRequest(
+          serviceId: _selectedServiceId!,
+          address: _addressController.text,
+          orderDate: DateTime(
             _selectedDate.year,
             _selectedDate.month,
             _selectedDate.day,
             _selectedTime.hour,
             _selectedTime.minute,
-          ).toIso8601String(),
-          'description': _descriptionController.text,
-          'budget': double.parse(_budgetController.text),
-          'responseDeadlineDays': int.parse(_deadlineDaysController.text),
-        };
-
-        final dio = DioClient.instance;
-        final response = await dio.post(
-          '${ApiConstants.baseUrl}${ApiConstants.marketplaceOrders}',
-          data: orderData,
+          ),
+          description: _descriptionController.text,
+          fulfillmentType: 'MARKETPLACE',
+          budget: double.parse(_budgetController.text),
+          responseDeadlineDays: int.parse(_deadlineDaysController.text),
+          imageObjectNames: _uploadedImages.isNotEmpty ? _uploadedImages : null,
         );
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          if (context.mounted) {
-            CustomSnackbar.showSuccess(context, 'Объявление опубликовано! Клинеры скоро откликнутся.');
-            context.go(RouteNames.myOrders);
-          }
-        } else {
-          throw Exception('Ошибка создания объявления');
+        final repository = OrderRepository();
+        await repository.createOrderWithMode(orderRequest);
+
+        if (mounted) {
+          CustomSnackbar.showSuccess(context, 'Объявление опубликовано! Клинеры скоро откликнутся.');
+          context.go(RouteNames.myOrders);
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           CustomSnackbar.showError(context, 'Ошибка: ${e.toString()}');
         }
       } finally {
@@ -222,7 +218,7 @@ class _CreateMarketplaceOrderScreenState extends ConsumerState<CreateMarketplace
               const SizedBox(height: 16),
               CustomTextField(
                 controller: _budgetController,
-                label: 'Бюджет (Т)',
+                label: 'Бюджет (₽)',
                 prefixIcon: Icons.attach_money,
                 keyboardType: TextInputType.number,
                 validator: Validators.required,
@@ -242,6 +238,18 @@ class _CreateMarketplaceOrderScreenState extends ConsumerState<CreateMarketplace
                 prefixIcon: Icons.description_outlined,
                 maxLines: 4,
                 validator: Validators.required,
+              ),
+              const SizedBox(height: 16),
+              const Text('Фото (необязательно)', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ImageUploader(
+                onImagesUploaded: (objectNames) {
+                  setState(() {
+                    _uploadedImages = objectNames;
+                  });
+                },
+                folder: 'orders',
+                maxImages: 5,
               ),
               const SizedBox(height: 32),
               CustomButton(

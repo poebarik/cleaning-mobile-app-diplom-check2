@@ -41,4 +41,17 @@ class RouteNames {
   static const String cleanersWorkload = '/cleaners-workload';
   static const String managerStats = '/manager-stats';
 
+
+
+  // V4 - Invitation System
+  static const String createInvitation = '/create-invitation';
+  static const String invitationDetails = '/invitation-details';
+  static const String myInvitations = '/my-invitations';
+  static const String cleanerInvitations = '/cleaner-invitations';
+
+  // V5 - Chat System
+  static const String chatList = '/chat-list';
+  static const String chatDetail = '/chat-detail';
+
+
 }

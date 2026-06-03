@@ -32,7 +32,7 @@ class OrderResponse {
       priceOffer: (json['priceOffer'] as num).toDouble(),
       status: json['status'] as String,
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
+          ? DateTime.parse(json['createdAt'])
           : null,
     );
   }

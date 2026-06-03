@@ -46,6 +46,11 @@ dependencies:
 
   # Functional programming
   dartz: ^0.10.1
+  stomp_dart_client: ^3.0.1
+
+  # Для изображений (V6)
+#  file_picker: ^6.1.1
+  flutter_image_compress: ^2.1.0
 
 dev_dependencies:
   flutter_test:

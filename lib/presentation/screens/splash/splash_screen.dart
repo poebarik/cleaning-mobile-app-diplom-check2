@@ -36,13 +36,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppTheme.primaryColor,
-              AppTheme.secondaryColor,
-            ],
+            colors: AppColors.gradient, // Используем AppColors.gradient вместо AppTheme.primaryColor
           ),
         ),
         child: Center(
@@ -53,20 +50,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.white,
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: AppColors.shadow,
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.cleaning_services,
                   size: 60,
-                  color: AppTheme.primaryColor,
+                  color: AppColors.primary, // Используем AppColors.primary
                 ),
               ),
               const SizedBox(height: 32),
@@ -75,7 +72,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.white,
                 ),
               ),
               const SizedBox(height: 16),
@@ -83,12 +80,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 'Профессиональная уборка',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: AppColors.white,
                 ),
               ),
               const SizedBox(height: 48),
               const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
               ),
             ],
           ),

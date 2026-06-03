@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../shared/widgets/custom_button.dart';
-import '../../../shared/widgets/status_chip.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../routes/route_names.dart';
 import '../../../shared/widgets/custom_snackbar.dart';
-import '../../../data/network/dio_client.dart';
-import '../../../core/constants/api_constants.dart';
-import '../../../data/models/order/marketplace_order.dart';
+import '../../../data/repositories/order_repository.dart';
+import '../../../domain/enums/order_action.dart';
+import '../../../data/models/order/order.dart';
+import '../../providers/auth_provider.dart';
 
 class JobDetailsScreen extends ConsumerStatefulWidget {
   final int jobId;
@@ -16,265 +18,307 @@ class JobDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
-  MarketplaceOrder? _order;
+  Order? _order;
   bool _isLoading = true;
-  bool _isResponding = false;
+  bool _isSubmitting = false;
   String? _error;
   final _messageController = TextEditingController();
-  final _priceOfferController = TextEditingController();
+  final _priceController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadJobDetails();
+    _loadJob();
   }
 
-  Future<void> _loadJobDetails() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _loadJob() async {
+    setState(() { _isLoading = true; _error = null; });
     try {
-      final dio = DioClient.instance;
-      final response = await dio.get(
-        '${ApiConstants.baseUrl}${ApiConstants.marketplaceOrders}/${widget.jobId}',
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _order = MarketplaceOrder.fromJson(response.data);
-          _isLoading = false;
-        });
-      } else {
-        throw Exception('Failed to load job details');
-      }
+      final order = await OrderRepository().getOrderById(widget.jobId);
+      setState(() { _order = order; _isLoading = false; });
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      setState(() { _error = e.toString(); _isLoading = false; });
     }
   }
 
-  Future<void> _respondToJob() async {
-    if (_priceOfferController.text.isEmpty) {
-      CustomSnackbar.showError(context, 'Введите цену');
+  Future<void> _respond() async {
+    if (_priceController.text.isEmpty) {
+      CustomSnackbar.showError(context, 'Введите вашу цену');
       return;
     }
-
-    setState(() {
-      _isResponding = true;
-    });
-
+    setState(() => _isSubmitting = true);
     try {
-      final dio = DioClient.instance;
-      final response = await dio.post(
-        '${ApiConstants.baseUrl}${ApiConstants.marketplaceOrders}/${widget.jobId}/respond',
-        data: {
-          'message': _messageController.text.isEmpty ? 'Готов выполнить уборку' : _messageController.text,
-          'priceOffer': double.parse(_priceOfferController.text),
-        },
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (context.mounted) {
-          CustomSnackbar.showSuccess(context, 'Отклик отправлен!');
-          Navigator.pop(context);
-        }
-      } else {
-        throw Exception('Failed to respond');
+      final cleanerId = (ref.read(authProvider) as AuthStateAuthenticated?)?.user?.id;
+      await OrderRepository().executeAction(widget.jobId, OrderAction.respond, {
+        'cleanerId': cleanerId,
+        'priceOffer': double.parse(_priceController.text),
+        'message': _messageController.text.isEmpty ? 'Готов выполнить уборку' : _messageController.text,
+      });
+      if (mounted) {
+        CustomSnackbar.showSuccess(context, 'Отклик отправлен!');
+        context.pop();
       }
     } catch (e) {
-      if (context.mounted) {
-        CustomSnackbar.showError(context, 'Ошибка: ${e.toString()}');
-      }
+      if (mounted) CustomSnackbar.showError(context, 'Ошибка: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isResponding = false;
-        });
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Детали заказа'),
-        elevation: 0,
-      ),
+      backgroundColor: AppColors.background,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Ошибка: $_error'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadJobDetails,
-              child: const Text('Повторить'),
-            ),
-          ],
-        ),
-      )
+          ? _buildError()
           : _order == null
           ? const Center(child: Text('Заказ не найден'))
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _order!.serviceName,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                StatusChip(status: _order!.status),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Address
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Адрес',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on, size: 20, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(_order!.address)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Date & Budget
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Дата'),
-                        Text(_formatDate(_order!.orderDate)),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Бюджет'),
-                        Text(
-                          '${_order!.budget} Т',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Срок отклика'),
-                        Text('${_order!.responseDeadlineDays} дней'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Description
-            if (_order!.description != null && _order!.description!.isNotEmpty)
-              Card(
+          : Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              _buildSliverHeader(),
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 200),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Описание',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(_order!.description!),
+                      _buildInfoCard(),
+                      const SizedBox(height: 16),
+                      if (_order!.description != null && _order!.description!.isNotEmpty)
+                        _buildDescriptionCard(),
+                      const SizedBox(height: 16),
+                      _buildRespondCard(),
                     ],
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
-            // Response form
-            const Text(
-              'Откликнуться на заказ',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            ],
+          ),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: _buildBottomBar(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverHeader() {
+    return SliverAppBar(
+      expandedHeight: 160,
+      pinned: true,
+      backgroundColor: AppColors.primary,
+      leading: GestureDetector(
+        onTap: () => context.pop(),
+        child: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+        ),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: AppColors.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(_order!.serviceName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, fontFamily: 'Poppins')),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.location_on_rounded, color: Colors.white70, size: 14),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text(_order!.address, style: const TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Poppins'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ]),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(
-                labelText: 'Сообщение',
-                hintText: 'Напишите что-то о себе...',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _priceOfferController,
-              decoration: const InputDecoration(
-                labelText: 'Ваша цена (Т)',
-                hintText: 'Предложите свою цену',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 24),
-            CustomButton(
-              onPressed: _respondToJob,
-              text: 'Откликнуться',
-              isLoading: _isResponding,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}.${date.month}.${date.year} в ${date.hour}:${date.minute}';
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Информация', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+              StatusBadge(status: _order!.status),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _infoRow(Icons.calendar_today_rounded, 'Дата', '${_order!.orderDate.day}.${_order!.orderDate.month}.${_order!.orderDate.year}'),
+          _infoRow(Icons.access_time_rounded, 'Время', '${_order!.orderDate.hour.toString().padLeft(2,'0')}:${_order!.orderDate.minute.toString().padLeft(2,'0')}'),
+          _infoRow(Icons.attach_money_rounded, 'Бюджет', '${_order!.budget} ₽', isHighlight: true),
+          if (_order!.clientName != null)
+            _infoRow(Icons.person_outline_rounded, 'Клиент', _order!.clientName!),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(9)),
+            child: Icon(icon, size: 16, color: AppColors.primary),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, color: AppColors.textHint)),
+              Text(value, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w500, color: isHighlight ? AppColors.primary : AppColors.textPrimary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDescriptionCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Описание', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+          const SizedBox(height: 10),
+          Text(_order!.description!, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRespondCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Ваш отклик', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+          const SizedBox(height: 14),
+          _styledField(_priceController, 'Ваша цена (₽)', Icons.attach_money_rounded, keyboardType: TextInputType.number),
+          const SizedBox(height: 12),
+          _styledField(_messageController, 'Сообщение клиенту', Icons.message_rounded, maxLines: 3),
+        ],
+      ),
+    );
+  }
+
+  Widget _styledField(TextEditingController ctrl, String hint, IconData icon, {int maxLines = 1, TextInputType? keyboardType}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: TextField(
+        controller: ctrl,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 14, color: AppColors.textHint),
+          prefixIcon: Icon(icon, size: 18, color: AppColors.primary),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 20, offset: const Offset(0, -4))],
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: AppColors.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 6))],
+          ),
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _respond,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Text('Отправить отклик', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 16, color: Colors.white)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Детали заказа')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 64, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary)),
+            const SizedBox(height: 20),
+            ElevatedButton(onPressed: _loadJob, child: const Text('Повторить')),
+          ],
+        ),
+      ),
+    );
   }
 }

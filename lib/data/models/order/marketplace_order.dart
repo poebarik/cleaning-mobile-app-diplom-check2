@@ -1,67 +1,72 @@
+import 'order_response.dart';
+
 class MarketplaceOrder {
-  final int? id;
-  final int? clientId;
+  final int id;
+  final int clientId;
+  final String clientName;
   final String serviceName;
   final String address;
-  final DateTime orderDate;
   final String? description;
-  final double budget;
-  final int responseDeadlineDays;
+  final DateTime orderDate;
   final String status;
-  final List<dynamic>? responses;
-  final int? selectedResponseId;
-  final DateTime? createdAt;
+  final double? budget;
+  final int? responseDeadlineDays;
+  final List<OrderResponse> responses;
+  final DateTime createdAt;
   final DateTime? updatedAt;
+  final bool? isDirectInvitation;
+  final int? invitationId;
+  final List<String>? imageObjectNames;
 
   MarketplaceOrder({
-    this.id,
-    this.clientId,
+    required this.id,
+    required this.clientId,
+    required this.clientName,
     required this.serviceName,
     required this.address,
-    required this.orderDate,
     this.description,
-    required this.budget,
-    required this.responseDeadlineDays,
+    required this.orderDate,
     required this.status,
-    this.responses,
-    this.selectedResponseId,
-    this.createdAt,
+    this.budget,
+    this.responseDeadlineDays,
+    this.responses = const [],
+    required this.createdAt,
     this.updatedAt,
+    this.isDirectInvitation,
+    this.invitationId,
+    this.imageObjectNames,
   });
 
   factory MarketplaceOrder.fromJson(Map<String, dynamic> json) {
     return MarketplaceOrder(
-      id: json['id'],
-      clientId: json['clientId'],
-      serviceName: json['serviceName'] ?? '',
-      address: json['address'] ?? '',
-      orderDate: json['orderDate'] != null ? DateTime.parse(json['orderDate']) : DateTime.now(),
-      description: json['description'],
-      budget: (json['budget'] ?? 0).toDouble(),
-      responseDeadlineDays: json['responseDeadlineDays'] ?? 1,
-      status: json['status'] ?? 'OPEN',
-      responses: json['responses'],
-      selectedResponseId: json['selectedResponseId'],
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      id: json['id'] as int,
+      clientId: json['clientId'] as int,
+      clientName: json['clientName'] as String,
+      serviceName: json['serviceName'] as String,
+      address: json['address'] as String,
+      description: json['description'] as String?,
+      orderDate: json['orderDate'] != null
+          ? DateTime.parse(json['orderDate'])
+          : DateTime.now(),
+      status: json['status'] as String,
+      budget: (json['budget'] as num?)?.toDouble(),
+      responseDeadlineDays: json['responseDeadlineDays'] as int?,
+      responses: json['responses'] != null
+          ? (json['responses'] as List)
+          .map((e) => OrderResponse.fromJson(e))
+          .toList()
+          : [],
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : null,
+      isDirectInvitation: json['isDirectInvitation'] as bool?,
+      invitationId: json['invitationId'] as int?,
+      imageObjectNames: json['imageObjectNames'] != null
+          ? List<String>.from(json['imageObjectNames'])
+          : null,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'clientId': clientId,
-      'serviceName': serviceName,
-      'address': address,
-      'orderDate': orderDate.toIso8601String(),
-      'description': description,
-      'budget': budget,
-      'responseDeadlineDays': responseDeadlineDays,
-      'status': status,
-      'responses': responses,
-      'selectedResponseId': selectedResponseId,
-      'createdAt': createdAt?.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
   }
 }

@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/custom_button.dart';
-import '../../../shared/widgets/custom_snackbar.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/custom_snackbar.dart';
 import '../../../routes/route_names.dart';
-import '../../providers/order_provider.dart';
-import '../../../data/network/dio_client.dart';
-import '../../../core/constants/api_constants.dart';
+import '../../../data/repositories/order_repository.dart';
+import '../../../data/models/order/unified_order_request.dart';
+import '../../../shared/widgets/image_uploader.dart';
 
 class CreateCompanyOrderScreen extends ConsumerStatefulWidget {
   const CreateCompanyOrderScreen({super.key});
@@ -22,8 +21,9 @@ class _CreateCompanyOrderScreenState extends ConsumerState<CreateCompanyOrderScr
   final _formKey = GlobalKey<FormState>();
   final _addressController = TextEditingController();
   final _descriptionController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _selectedTime = TimeOfDay.now();
+  List<String> _uploadedImages = [];
   bool _isLoading = false;
 
   final List<Map<String, dynamic>> _services = [
@@ -39,7 +39,7 @@ class _CreateCompanyOrderScreenState extends ConsumerState<CreateCompanyOrderScr
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().add(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 90)),
     );
     if (picked != null && picked != _selectedDate) {
@@ -68,38 +68,31 @@ class _CreateCompanyOrderScreenState extends ConsumerState<CreateCompanyOrderScr
       });
 
       try {
-        final orderData = {
-          'serviceId': _selectedServiceId,
-          'address': _addressController.text,
-          'orderDate': DateTime(
+        final orderRequest = UnifiedOrderRequest(
+          serviceId: _selectedServiceId!,
+          address: _addressController.text,
+          orderDate: DateTime(
             _selectedDate.year,
             _selectedDate.month,
             _selectedDate.day,
             _selectedTime.hour,
             _selectedTime.minute,
-          ).toIso8601String(),
-          'description': _descriptionController.text,
-          'orderType': 'COMPANY_ASSIGNED',
-        };
-
-        // Реальный API вызов
-        final dio = DioClient.instance;
-        final response = await dio.post(
-          '${ApiConstants.baseUrl}${ApiConstants.orders}',
-          data: orderData,
+          ),
+          description: _descriptionController.text,
+          // ✅ ИСПРАВЛЕНО: используем COMPANY_ASSIGNED вместо COMPANY
+          fulfillmentType: 'COMPANY_ASSIGNED',
+          imageObjectNames: _uploadedImages.isNotEmpty ? _uploadedImages : null,
         );
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          if (context.mounted) {
-            CustomSnackbar.showSuccess(context, 'Заказ успешно создан!');
-            // Перенаправляем на список заказов
-            context.go(RouteNames.myOrders);
-          }
-        } else {
-          throw Exception('Ошибка создания заказа');
+        final repository = OrderRepository();
+        await repository.createOrderWithMode(orderRequest);
+
+        if (mounted) {
+          CustomSnackbar.showSuccess(context, 'Заказ успешно создан!');
+          context.go(RouteNames.myOrders);
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           CustomSnackbar.showError(context, 'Ошибка: ${e.toString()}');
         }
       } finally {
@@ -135,7 +128,7 @@ class _CreateCompanyOrderScreenState extends ConsumerState<CreateCompanyOrderScr
               const SizedBox(height: 12),
               ..._services.map((service) => RadioListTile<int>(
                 title: Text(service['name']),
-                subtitle: Text('${service['price']} Т'),
+                subtitle: Text('${service['price']} ₽'),
                 value: service['id'],
                 groupValue: _selectedServiceId,
                 onChanged: (value) {
@@ -208,6 +201,18 @@ class _CreateCompanyOrderScreenState extends ConsumerState<CreateCompanyOrderScr
                 prefixIcon: Icons.description_outlined,
                 maxLines: 4,
                 validator: Validators.required,
+              ),
+              const SizedBox(height: 16),
+              const Text('Фото (необязательно)', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ImageUploader(
+                onImagesUploaded: (objectNames) {
+                  setState(() {
+                    _uploadedImages = objectNames;
+                  });
+                },
+                folder: 'orders',
+                maxImages: 5,
               ),
               const SizedBox(height: 32),
               CustomButton(

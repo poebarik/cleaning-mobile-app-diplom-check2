@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../shared/widgets/custom_snackbar.dart';
-import '../../../data/network/dio_client.dart';
-import '../../../core/constants/api_constants.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../routes/route_names.dart';
+import '../../../shared/widgets/custom_snackbar.dart';
+import '../../../data/repositories/order_repository.dart';
+import '../../../domain/enums/order_action.dart';
+import '../../../data/models/order/order.dart';
 
 class AssignedOrdersScreen extends ConsumerStatefulWidget {
   const AssignedOrdersScreen({super.key});
@@ -14,295 +16,241 @@ class AssignedOrdersScreen extends ConsumerStatefulWidget {
 }
 
 class _AssignedOrdersScreenState extends ConsumerState<AssignedOrdersScreen> {
-  List<Map<String, dynamic>> _orders = [];
+  List<Order> _orders = [];
   bool _isLoading = true;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadAssignedOrders();
+    _loadOrders();
   }
 
-  Future<void> _loadAssignedOrders() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
+  Future<void> _loadOrders() async {
+    setState(() => _isLoading = true);
     try {
-      final dio = DioClient.instance;
-      // Используем правильный endpoint: /api/orders/cleaner
-      final response = await dio.get(
-        '${ApiConstants.baseUrl}${ApiConstants.cleanerOrders}',
-      );
-
-      print('Response status: ${response.statusCode}');
-      print('Response data: ${response.data}');
-
-      if (response.statusCode == 200) {
-        // Обрабатываем ответ в зависимости от формата
-        List<Map<String, dynamic>> ordersList = [];
-        if (response.data is List) {
-          ordersList = List<Map<String, dynamic>>.from(response.data);
-        } else if (response.data is Map && response.data['content'] is List) {
-          ordersList = List<Map<String, dynamic>>.from(response.data['content']);
-        }
-
-        setState(() {
-          _orders = ordersList;
-          _isLoading = false;
-        });
-      } else {
-        throw Exception('Failed to load orders');
-      }
+      final repository = OrderRepository();
+      final orders = await repository.getCleanerOrders();
+      setState(() { _orders = orders; _isLoading = false; });
     } catch (e) {
-      print('Error loading orders: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
+      if (mounted) CustomSnackbar.showError(context, 'Ошибка: $e');
     }
   }
 
-  Future<void> _updateOrderStatus(int orderId, String newStatus) async {
+  Future<void> _updateStatus(int orderId, OrderAction action, String label) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(label, style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700)),
+        content: Text('Подтвердить действие "$label"?', style: const TextStyle(fontFamily: 'Poppins')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Подтвердить')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     try {
-      final dio = DioClient.instance;
-      final response = await dio.patch(
-        '${ApiConstants.baseUrl}${ApiConstants.orders}/$orderId/status',
-        data: {'status': newStatus},
-      );
-
-      if (response.statusCode == 200) {
-        CustomSnackbar.showSuccess(context, 'Статус заказа обновлен');
-        _loadAssignedOrders();
-      }
+      await OrderRepository().executeAction(orderId, action, {});
+      if (mounted) { CustomSnackbar.showSuccess(context, 'Статус обновлён'); _loadOrders(); }
     } catch (e) {
-      CustomSnackbar.showError(context, 'Ошибка обновления статуса: ${e.toString()}');
+      if (mounted) CustomSnackbar.showError(context, 'Ошибка: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Мои заказы'),
-        elevation: 0,
+        backgroundColor: AppColors.background,
+        title: const Text('Мои заказы', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700)),
+        leading: GestureDetector(
+          onTap: () => context.pop(),
+          child: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAssignedOrders,
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
+            onPressed: _loadOrders,
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadAssignedOrders,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Ошибка: $_error'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadAssignedOrders,
-                child: const Text('Повторить'),
-              ),
-            ],
-          ),
-        )
-            : _orders.isEmpty
-            ? const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.inbox_outlined, size: 80, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('У вас пока нет назначенных заказов'),
-            ],
-          ),
-        )
-            : ListView.builder(
-          padding: const EdgeInsets.all(16),
+      body: _isLoading
+          ? _buildShimmer()
+          : _orders.isEmpty
+          ? _buildEmpty()
+          : RefreshIndicator(
+        onRefresh: _loadOrders,
+        color: AppColors.primary,
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
           itemCount: _orders.length,
-          itemBuilder: (context, index) {
-            final order = _orders[index];
-            return _buildOrderCard(order);
-          },
+          itemBuilder: (ctx, i) => _buildOrderCard(_orders[i]),
         ),
       ),
     );
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> order) {
-    final status = order['status'] ?? 'PENDING';
-    final canStart = status == 'ACCEPTED' || status == 'PENDING';
-    final canComplete = status == 'IN_PROGRESS';
+  Widget _buildOrderCard(Order order) {
+    final canStart = order.status == 'ACCEPTED';
+    final canComplete = order.status == 'IN_PROGRESS';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
       ),
-      child: InkWell(
-        onTap: () {
-          context.push(
-            '${RouteNames.orderDetails}/${order['id']}',
-            extra: order,
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Заказ #${order['id']}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: () => context.push('${RouteNames.jobDetails}/${order.id}'),
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: AppColors.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.cleaning_services_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(order.serviceName, style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+                          const SizedBox(height: 3),
+                          Text('Заказ № ${order.id}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.textHint)),
+                        ],
                       ),
                     ),
-                  ),
-                  _buildStatusChip(status),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      order['address'] ?? 'Адрес не указан',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatDate(order['orderDate']),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.person, size: 16, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Клиент: ${order['clientName'] ?? 'Не указан'}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-              if (canStart || canComplete) ...[
+                    StatusBadge(status: order.status),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    if (canStart)
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _updateOrderStatus(order['id'], 'IN_PROGRESS'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Начать работу'),
-                        ),
-                      ),
-                    if (canStart && canComplete) const SizedBox(width: 12),
-                    if (canComplete)
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _updateOrderStatus(order['id'], 'COMPLETED'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Завершить'),
-                        ),
-                      ),
+                    const Icon(Icons.location_on_rounded, size: 14, color: AppColors.textHint),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(order.address, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.textHint),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${order.orderDate.day}.${order.orderDate.month}.${order.orderDate.year}',
+                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${order.budget} ₽',
+                      style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.primary),
+                    ),
+                  ],
+                ),
+                if (canStart || canComplete) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      if (canStart)
+                        Expanded(
+                          child: _actionButton(
+                            label: 'Начать работу',
+                            icon: Icons.play_arrow_rounded,
+                            color: AppColors.secondary,
+                            onTap: () => _updateStatus(order.id, OrderAction.start, 'Начать работу'),
+                          ),
+                        ),
+                      if (canComplete)
+                        Expanded(
+                          child: _actionButton(
+                            label: 'Завершить',
+                            icon: Icons.check_rounded,
+                            color: AppColors.success,
+                            onTap: () => _updateStatus(order.id, OrderAction.complete, 'Завершить'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusChip(String status) {
-    Color color;
-    String text;
-
-    switch (status) {
-      case 'PENDING':
-        color = Colors.orange;
-        text = 'В ожидании';
-        break;
-      case 'ACCEPTED':
-        color = Colors.green;
-        text = 'Принят';
-        break;
-      case 'IN_PROGRESS':
-        color = Colors.blue;
-        text = 'В процессе';
-        break;
-      case 'COMPLETED':
-        color = Colors.teal;
-        text = 'Завершен';
-        break;
-      case 'CANCELLED':
-        color = Colors.red;
-        text = 'Отменен';
-        break;
-      default:
-        color = Colors.grey;
-        text = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: color,
-          fontWeight: FontWeight.w500,
+  Widget _actionButton({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 13, color: color)),
+          ],
         ),
       ),
     );
   }
 
-  String _formatDate(String? dateString) {
-    if (dateString == null) return 'Дата не указана';
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}.${date.month}.${date.year} ${date.hour}:${date.minute}';
-    } catch (e) {
-      return dateString;
-    }
+  Widget _buildShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: 3,
+      itemBuilder: (_, __) => Container(
+        height: 130,
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 100, height: 100,
+            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.08), shape: BoxShape.circle),
+            child: const Icon(Icons.work_off_rounded, size: 50, color: AppColors.primary),
+          ),
+          const SizedBox(height: 20),
+          const Text('Нет назначенных заказов', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          const Text('Откликнитесь на доступные заказы', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
   }
 }

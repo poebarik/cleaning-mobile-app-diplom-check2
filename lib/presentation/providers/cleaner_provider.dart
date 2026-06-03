@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/network/dio_client.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../data/models/cleaner/cleaner.dart';
+import '../../data/repositories/order_repository.dart';
+import '../../domain/enums/order_action.dart';
 
 final cleanerProvider = StateNotifierProvider<CleanerNotifier, CleanerState>((ref) {
   return CleanerNotifier();
@@ -47,6 +49,22 @@ class CleanerNotifier extends StateNotifier<CleanerState> {
       }
     } catch (e) {
       state = CleanerStateError(e.toString());
+    }
+  }
+  Future<void> respondToJob(int orderId, double priceOffer, String message, int cleanerId) async {
+    try {
+      final repository = OrderRepository();
+      await repository.executeAction(
+        orderId,
+        OrderAction.respond,
+        {
+          'cleanerId': cleanerId,
+          'priceOffer': priceOffer,
+          'message': message,
+        },
+      );
+    } catch (e) {
+      rethrow;
     }
   }
 }
@@ -106,4 +124,5 @@ extension CleanerStateExtension on CleanerState {
     }
     return null;
   }
+
 }

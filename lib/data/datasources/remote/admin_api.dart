@@ -8,7 +8,7 @@ class AdminApi {
 
   Future<Map<String, dynamic>> getStatistics() async {
     final response = await _dio.get(
-      '${ApiConstants.baseUrl}${ApiConstants.stats}',
+      '${ApiConstants.baseUrl}${ApiConstants.adminStats}',
     );
     return response.data;
   }
