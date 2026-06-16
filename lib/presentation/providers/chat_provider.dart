@@ -14,7 +14,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
   late final ChatApi _chatApi;
   late final WebSocketService _webSocketService;
 
-  // ✅ Флаг для отслеживания активности
   bool _isDisposed = false;
 
   Function(Message)? onMessageReceived;
@@ -24,7 +23,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _webSocketService = WebSocketService.instance;
 
     _webSocketService.onMessageReceived = (message) {
-      // ✅ Проверяем, что виджет еще жив
       if (_isDisposed) return;
 
       Future.microtask(() {
@@ -107,7 +105,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (state is ChatStateMessagesLoaded) {
       final currentState = state as ChatStateMessagesLoaded;
       if (currentState.chatId == message.chatId) {
-        // ✅ Проверяем, нет ли уже такого сообщения
         final exists = currentState.messages.any((m) => m.id == message.id);
         if (exists) {
           debugPrint('⏭️ WS: Message ${message.id} already exists, skipping');
@@ -125,6 +122,26 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (_isDisposed) return;
     await _webSocketService.connect();
     _webSocketService.markChatAsRead(chatId);
+  }
+
+  Future<void> sendMessageWithImages(int chatId, String content, List<String> imageObjectNames) async {
+    if (content.isEmpty && imageObjectNames.isEmpty) return;
+
+    // Отправляем сообщение с фото
+    if (imageObjectNames.isNotEmpty) {
+      // Если есть текст и фото, отправляем текст и прикрепляем фото
+      for (final imageName in imageObjectNames) {
+        await sendMessage(chatId, content.isEmpty ? '📷 Фото' : content, imageObjectName: imageName);
+      }
+    } else if (content.isNotEmpty) {
+      await sendMessage(chatId, content);
+    }
+
+    // После отправки, обновляем сообщения
+    if (state is ChatStateMessagesLoaded) {
+      final currentState = state as ChatStateMessagesLoaded;
+      await loadMessages(currentState.chatId);
+    }
   }
 
   @override
@@ -164,6 +181,7 @@ class ChatStateError extends ChatState {
   const ChatStateError(this.error);
 }
 
+// Extension для удобной работы с состоянием
 extension ChatStateExtension on ChatState {
   bool get isLoading => this is ChatStateLoading;
   bool get isChatsLoaded => this is ChatStateChatsLoaded;

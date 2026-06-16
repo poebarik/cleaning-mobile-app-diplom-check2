@@ -51,6 +51,11 @@ dependencies:
   # Для изображений (V6)
 #  file_picker: ^6.1.1
   flutter_image_compress: ^2.1.0
+  google_maps_flutter: ^2.5.0
+  geocoding: ^2.1.1
+  geolocator: ^10.1.0
+  hive_flutter: ^1.1.0
+  uuid: ^4.2.1
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +65,8 @@ dev_dependencies:
   json_serializable: ^6.7.1
   freezed: ^2.4.5
   retrofit_generator: ^8.0.0  # Понижена версия для совместимости
+  hive_generator: ^2.0.0
+
 
 flutter:
   uses-material-design: true

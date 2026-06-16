@@ -1,3 +1,4 @@
+// lib/routes/route_guards.dart
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../presentation/providers/auth_provider.dart';
@@ -7,13 +8,14 @@ class RouteGuard {
   static String? handleRedirect(ProviderRef ref, GoRouterState state) {
     final authState = ref.read(authProvider);
 
-    // Проверяем авторизацию через extension
     final isAuthenticated = authState.isAuthenticated;
 
-    // Проверяем, является ли маршрут auth-маршрутом
+    // ✅ ДОБАВЬТЕ forgotPassword И resetPassword В СПИСОК AUTH-МАРШРУТОВ
     final isAuthRoute = state.matchedLocation == RouteNames.login ||
         state.matchedLocation == RouteNames.register ||
-        state.matchedLocation == RouteNames.splash;
+        state.matchedLocation == RouteNames.splash ||
+        state.matchedLocation == RouteNames.forgotPassword ||
+        state.matchedLocation == RouteNames.resetPassword;
 
     // Если пользователь не авторизован и пытается зайти на защищенный маршрут
     if (!isAuthenticated && !isAuthRoute) {

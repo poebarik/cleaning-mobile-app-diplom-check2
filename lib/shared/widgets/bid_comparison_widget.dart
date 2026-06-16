@@ -79,7 +79,7 @@ class BidComparisonWidget extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(bid.message),
+          Text(bid.message ?? ''),
           ],
         ),
       ),

@@ -24,11 +24,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       ) : super(const AuthStateUnauthenticated()); // Изменено с initial на Unauthenticated
 
   Future<void> login(String email, String password) async {
-    state = const AuthStateLoading(); // Изменено с loading() на AuthStateLoading()
+    state = const AuthStateLoading();
     final result = await _loginUseCase.execute(email, password);
     result.fold(
           (failure) => state = AuthStateError(failure.message),
-          (user) => state = AuthStateAuthenticated(user),
+          (user) {
+        print('✅ Login success: role=${user.role}, cleanerId=${user.cleanerId}');
+        state = AuthStateAuthenticated(user);
+      },
     );
   }
 

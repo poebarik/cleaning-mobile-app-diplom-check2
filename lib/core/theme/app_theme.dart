@@ -40,6 +40,11 @@ class AppColors {
   static const Color statusCancelled = Color(0xFFFFEBEE);
   static const Color statusCancelledText = Color(0xFFC62828);
 
+  static const Color primaryContainer = Color(0xFFC8E6C9);
+  static const Color primaryContainerLight = Color(0xFFE8F5E9);
+  static const Color secondaryContainer = Color(0xFFBBDEFB);
+  static const Color warningContainer = Color(0xFFFFF3E0);
+
   static const List<Color> gradient = [
     Color(0xFF6C5CE7),
     Color(0xFF0984E3),

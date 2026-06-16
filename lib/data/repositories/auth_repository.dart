@@ -59,4 +59,14 @@ class AuthRepository implements IAuthRepository {
     // Если есть refresh token
     // await _secureStorage.write(key: 'refresh_token', value: response.refreshToken);
   }
+  @override
+  Future<void> forgotPassword(String email) async {
+    await _authApi.forgotPassword(email);
+  }
+
+  @override
+  Future<void> resetPassword(String token, String newPassword) async {
+    await _authApi.resetPassword(token, newPassword);
+  }
+
 }

@@ -11,15 +11,19 @@ final notificationProvider = StateNotifierProvider<NotificationNotifier, Notific
 class NotificationNotifier extends StateNotifier<NotificationState> {
   late final NotificationApi _notificationApi;
   Timer? _pollingTimer;
+  bool _isDisposed = false;
 
   NotificationNotifier() : super(const NotificationStateInitial()) {
     _notificationApi = NotificationApi(DioClient.instance);
   }
 
   void startPolling() {
+    if (_isDisposed) return;
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      loadUnreadCount();
+      if (!_isDisposed) {
+        loadUnreadCount();
+      }
     });
   }
 
@@ -29,23 +33,33 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
   }
 
   Future<void> loadNotifications() async {
+    if (_isDisposed) return;
+
     state = const NotificationStateLoading();
     try {
       final notifications = await _notificationApi.getNotifications();
-      state = NotificationStateLoaded(notifications);
+      if (!_isDisposed) {
+        state = NotificationStateLoaded(notifications);
+      }
     } catch (e) {
-      state = NotificationStateError(e.toString());
+      if (!_isDisposed) {
+        state = NotificationStateError(e.toString());
+      }
     }
   }
 
   Future<void> loadUnreadCount() async {
+    if (_isDisposed) return;
+
     try {
       final count = await _notificationApi.getUnreadCount();
-      if (state is NotificationStateLoaded) {
-        final currentState = state as NotificationStateLoaded;
-        state = NotificationStateLoaded(currentState.notifications, unreadCount: count);
-      } else {
-        state = NotificationStateUnreadCount(count);
+      if (!_isDisposed) {
+        if (state is NotificationStateLoaded) {
+          final currentState = state as NotificationStateLoaded;
+          state = NotificationStateLoaded(currentState.notifications, unreadCount: count);
+        } else {
+          state = NotificationStateUnreadCount(count);
+        }
       }
     } catch (e) {
       // Silent fail for polling
@@ -53,6 +67,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
   }
 
   Future<void> markAsRead(int notificationId) async {
+    if (_isDisposed) return;
     try {
       await _notificationApi.markAsRead(notificationId);
       await loadNotifications();
@@ -63,6 +78,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
   }
 
   Future<void> markAllAsRead() async {
+    if (_isDisposed) return;
     try {
       await _notificationApi.markAllAsRead();
       await loadNotifications();
@@ -74,6 +90,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     stopPolling();
     super.dispose();
   }
@@ -110,6 +127,7 @@ class NotificationStateError extends NotificationState {
 
 extension NotificationStateExtension on NotificationState {
   bool get isLoading => this is NotificationStateLoading;
+  bool get isLoaded => this is NotificationStateLoaded;
   List<AppNotification>? get notifications {
     if (this is NotificationStateLoaded) {
       return (this as NotificationStateLoaded).notifications;
@@ -124,5 +142,11 @@ extension NotificationStateExtension on NotificationState {
       return (this as NotificationStateUnreadCount).count;
     }
     return 0;
+  }
+  String? get error {
+    if (this is NotificationStateError) {
+      return (this as NotificationStateError).error;
+    }
+    return null;
   }
 }

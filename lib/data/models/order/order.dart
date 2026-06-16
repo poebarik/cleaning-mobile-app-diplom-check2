@@ -1,3 +1,6 @@
+import 'order_response.dart';
+import 'order_specification_dto.dart';
+
 class Order {
   final int id;
   final int? clientId;           // ✅ nullable
@@ -15,10 +18,15 @@ class Order {
   final double? budget;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int? jobPostId;
+  final OrderSpecificationDTO? specification;
+
+
 
   final bool? isDirectInvitation;
   final int? invitationId;
   final List<String>? imageObjectNames;
+  final List<OrderResponse>? responses;
 
   Order({
     required this.id,
@@ -40,6 +48,10 @@ class Order {
     this.isDirectInvitation,
     this.invitationId,
     this.imageObjectNames,
+    this.responses,
+    this.jobPostId,
+    this.specification
+
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -71,6 +83,16 @@ class Order {
       imageObjectNames: json['imageObjectNames'] != null
           ? List<String>.from(json['imageObjectNames'])
           : null,
+      jobPostId: json['jobPostId'] as int?,
+      responses: json['responses'] != null
+          ? (json['responses'] as List)
+          .map((e) => OrderResponse.fromJson(e))
+          .toList()
+          : [],
+      specification: json['specification'] != null
+          ? OrderSpecificationDTO.fromJson(json['specification'])
+          : null,
+
     );
   }
 

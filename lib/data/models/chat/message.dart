@@ -1,45 +1,51 @@
+// lib/data/models/chat/message.dart
 class Message {
   final int id;
   final int chatId;
   final int senderId;
   final String senderName;
+  final String? senderAvatarUrl;
   final String? content;
-  final String? imageObjectName;
+  final List<String>? imageObjectNames;
   final String? imageUrl;
   final bool isRead;
   final DateTime createdAt;
-  final DateTime? readAt;
 
   Message({
     required this.id,
     required this.chatId,
     required this.senderId,
     required this.senderName,
+    this.senderAvatarUrl,
     this.content,
-    this.imageObjectName,
+    this.imageObjectNames,
     this.imageUrl,
-    this.isRead = false,  // ✅ Значение по умолчанию
+    this.isRead = false,
     required this.createdAt,
-    this.readAt,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
+    // Обработка imageObjectNames (может быть String или List)
+    List<String>? imageObjectNames;
+    if (json['imageObjectNames'] != null) {
+      if (json['imageObjectNames'] is List) {
+        imageObjectNames = List<String>.from(json['imageObjectNames']);
+      } else if (json['imageObjectNames'] is String) {
+        imageObjectNames = [json['imageObjectNames'] as String];
+      }
+    }
+
     return Message(
       id: json['id'] as int,
       chatId: json['chatId'] as int,
       senderId: json['senderId'] as int,
       senderName: json['senderName'] as String,
+      senderAvatarUrl: json['senderAvatarUrl'] as String?,
       content: json['content'] as String?,
-      imageObjectName: json['imageObjectName'] as String?,
+      imageObjectNames: imageObjectNames,
       imageUrl: json['imageUrl'] as String?,
-      // ✅ isRead может отсутствовать в WebSocket сообщении
       isRead: json['isRead'] as bool? ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
-      readAt: json['readAt'] != null
-          ? DateTime.parse(json['readAt'])
-          : null,
+      createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
 
@@ -49,12 +55,12 @@ class Message {
       'chatId': chatId,
       'senderId': senderId,
       'senderName': senderName,
+      'senderAvatarUrl': senderAvatarUrl,
       'content': content,
-      'imageObjectName': imageObjectName,
+      'imageObjectNames': imageObjectNames,
       'imageUrl': imageUrl,
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
-      if (readAt != null) 'readAt': readAt!.toIso8601String(),
     };
   }
 }

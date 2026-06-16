@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../shared/widgets/shimmer_loading.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../data/models/chat/chat.dart';
+import '../../../core/constants/api_constants.dart';
 import 'chat_detail_screen.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
@@ -67,17 +70,33 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   Widget _buildChatTile(Chat chat) {
+    final otherUserAvatar = _getOtherUserAvatar(chat);
+    final otherUserName = _getOtherUserName(chat);
+    final otherUserId = _getOtherUserId(chat);
+
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-        child: Text(
-          chat.cleanerName[0],
-          style: const TextStyle(fontWeight: FontWeight.bold),
+      leading: GestureDetector(
+        onTap: () => _navigateToProfile(otherUserId),
+        child: CircleAvatar(
+          radius: 24,
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+          backgroundImage: otherUserAvatar != null && otherUserAvatar.isNotEmpty
+              ? CachedNetworkImageProvider(otherUserAvatar)
+              : null,
+          child: otherUserAvatar == null || otherUserAvatar.isEmpty
+              ? Text(
+            otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          )
+              : null,
         ),
       ),
-      title: Text(
-        chat.cleanerName,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+      title: GestureDetector(
+        onTap: () => _navigateToProfile(otherUserId),
+        child: Text(
+          otherUserName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       subtitle: Text(
         chat.lastMessage?.content ?? 'Напишите сообщение...',
@@ -117,6 +136,43 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         });
       },
     );
+  }
+
+  String? _getOtherUserAvatar(Chat chat) {
+    final authState = ref.read(authProvider);
+    final currentUserId = authState.user?.id;
+
+    if (currentUserId == chat.clientId) {
+      return chat.cleanerAvatarUrl;
+    } else {
+      return chat.clientAvatarUrl;
+    }
+  }
+
+  String _getOtherUserName(Chat chat) {
+    final authState = ref.read(authProvider);
+    final currentUserId = authState.user?.id;
+
+    if (currentUserId == chat.clientId) {
+      return chat.cleanerName;
+    } else {
+      return chat.clientName;
+    }
+  }
+
+  int _getOtherUserId(Chat chat) {
+    final authState = ref.read(authProvider);
+    final currentUserId = authState.user?.id;
+
+    if (currentUserId == chat.clientId) {
+      return chat.cleanerId;
+    } else {
+      return chat.clientId;
+    }
+  }
+
+  void _navigateToProfile(int userId) {
+    Navigator.pushNamed(context, '/profile', arguments: userId);
   }
 
   String _formatTime(DateTime date) {

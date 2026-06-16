@@ -128,7 +128,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   validator: Validators.password,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+
+                // ✅ КНОПКА "ЗАБЫЛИ ПАРОЛЬ?" - ДОБАВЬТЕ ЭТОТ БЛОК
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      context.push(RouteNames.forgotPassword);
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Забыли пароль?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
                 // Login button
                 CustomButton(
                   onPressed: _handleLogin,

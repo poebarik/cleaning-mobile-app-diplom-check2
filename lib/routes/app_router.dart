@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/chat/chat.dart';
+import '../presentation/screens/auth/forgot_password_screen.dart';
+import '../presentation/screens/auth/reset_password_screen.dart';
+import '../presentation/screens/client/draft_order_screen.dart';
+import '../presentation/screens/client/responses_screen.dart';
+import '../presentation/screens/common/profile_screen.dart';
+import '../presentation/screens/reviews/create_review_screen.dart';
+
+import '../presentation/screens/reviews/create_review_screen.dart';
 import '../presentation/screens/splash/splash_screen.dart';
 import '../presentation/screens/auth/login_screen.dart';
 import '../presentation/screens/auth/register_screen.dart';
@@ -32,6 +40,11 @@ import '../presentation/screens/cleaner/my_invitations_screen.dart';
 import '../presentation/screens/chat/chat_list_screen.dart';
 import '../presentation/screens/chat/chat_detail_screen.dart';
 import '../presentation/providers/auth_provider.dart';
+import '../presentation/screens/cleaner/cleaner_verification_screen.dart';
+import '../presentation/screens/manager/pending_verifications_screen.dart';
+import '../presentation/screens/reviews/reviews_screen.dart';
+
+import '../presentation/screens/client/create_order_wizard/create_order_wizard_screen.dart';
 
 import 'route_guards.dart';
 import 'route_names.dart';
@@ -71,16 +84,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.createOrder,
         builder: (context, state) => const CreateOrderScreen(),
       ),
-      GoRoute(
-        path: RouteNames.createCompanyOrder,
-        name: RouteNames.createCompanyOrder,
-        builder: (context, state) => const CreateCompanyOrderScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.createMarketplaceOrder,
-        name: RouteNames.createMarketplaceOrder,
-        builder: (context, state) => const CreateMarketplaceOrderScreen(),
-      ),
+      // GoRoute(
+      //   path: RouteNames.createCompanyOrder,
+      //   name: RouteNames.createCompanyOrder,
+      //   builder: (context, state) => const CreateCompanyOrderScreen(),
+      // ),
+      // GoRoute(
+      //   path: RouteNames.createMarketplaceOrder,
+      //   name: RouteNames.createMarketplaceOrder,
+      //   builder: (context, state) => const CreateMarketplaceOrderScreen(),
+      // ),
       GoRoute(
         path: RouteNames.myOrders,
         name: RouteNames.myOrders,
@@ -94,14 +107,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CleanerListScreen(orderId: orderId != null ? int.parse(orderId) : null);
         },
       ),
-      GoRoute(
-        path: '${RouteNames.cleanerDetails}/:id',
-        name: RouteNames.cleanerDetails,
-        builder: (context, state) {
-          final cleanerId = int.parse(state.pathParameters['id']!);
-          return CleanerDetailsScreen(cleanerId: cleanerId);
-        },
-      ),
+      // GoRoute(
+      //   path: '${RouteNames.cleanerDetails}/:id',
+      //   name: RouteNames.cleanerDetails,
+      //   builder: (context, state) {
+      //     final cleanerId = int.parse(state.pathParameters['id']!);
+      //     return CleanerDetailsScreen(cleanerId: cleanerId);
+      //   },
+      // ),
 
       // Order routes
       GoRoute(
@@ -255,6 +268,126 @@ final routerProvider = Provider<GoRouter>((ref) {
           }
         },
       ),
+      GoRoute(
+        path: RouteNames.forgotPassword,
+        name: 'forgotPassword',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.resetPassword,
+        name: 'resetPassword',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          return ResetPasswordScreen(token: token);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.cleanerVerification,
+        name: RouteNames.cleanerVerification,
+        builder: (context, state) => const CleanerVerificationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.pendingVerifications,
+        name: RouteNames.pendingVerifications,
+        builder: (context, state) => const PendingVerificationsScreen(),
+      ),
+      GoRoute(
+        path: '${RouteNames.reviews}/:id/:type/:name',
+        name: RouteNames.reviews,
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          final type = state.pathParameters['type']!;
+          final name = Uri.decodeComponent(state.pathParameters['name']!);
+          return ReviewsScreen(targetId: id, reviewType: type, targetName: name);
+        },
+      ),
+      GoRoute(
+        path: '/create-order-wizard',
+        name: 'create-order-wizard',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return CreateOrderWizardScreen(
+            serviceId: extra?['serviceId'] ?? 1,
+            address: extra?['address'] ?? '',
+            orderDate: extra?['orderDate'] ?? DateTime.now(),
+            cleanerId: extra?['cleanerId'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/profile/:userId',
+        name: 'profile',  // ✅ Один name - "profile"
+        builder: (context, state) {
+          final userId = int.tryParse(state.pathParameters['userId'] ?? '0');
+          if (userId == null || userId == 0) {
+            // Если userId не передан, показываем свой профиль
+            return const ProfileScreen();
+          }
+          return ProfileScreen(userId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/responses/:orderId',
+        name: 'responses',
+        builder: (context, state) {
+          final orderId = int.parse(state.pathParameters['orderId']!);
+          final extra = state.extra as Map<String, dynamic>?;
+          print('Navigating to responses with orderId: $orderId'); // Debug
+          return ResponsesScreen(
+            orderId: orderId,
+            orderBudget: extra?['budget'] as double?,
+          );
+        },
+      ),
+
+      // ✅ Потом маршрут без параметров (как fallback)
+      GoRoute(
+        path: '/responses',
+        name: 'responsesFallback',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final orderId = extra?['orderId'] as int?;
+
+          if (orderId == null || orderId == 0) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Ошибка: ID заказа не указан'),
+              ),
+            );
+          }
+
+          return ResponsesScreen(
+            orderId: orderId,
+            orderBudget: extra?['budget'] as double?,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/create-review',
+        name: 'createReview',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null) {
+            return const Scaffold(
+              body: Center(child: Text('Ошибка: данные не переданы')),
+            );
+          }
+          return CreateReviewScreen(
+            orderId: extra['orderId'] as int,
+            targetUserId: extra['targetUserId'] as int,
+            targetUserName: extra['targetUserName'] as String,
+            reviewType: extra['reviewType'] as String,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/create-order-draft',
+        name: 'createOrderDraft',
+        builder: (context, state) => const DraftOrderScreen(),
+      ),
+
+
     ],
   );
 });

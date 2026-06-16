@@ -6,4 +6,8 @@ abstract class IAuthRepository {
   Future<void> logout();
   Future<String?> getToken();
   Future<bool> isLoggedIn();
+  Future<void> forgotPassword(String email);
+  Future<void> resetPassword(String token, String newPassword);
+
+
 }

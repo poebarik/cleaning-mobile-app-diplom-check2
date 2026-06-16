@@ -23,6 +23,7 @@ class RegisterUseCase {
         avatar: null,
         rating: null,
         completedOrders: null,
+        cleanerId: response.cleanerId,
       );
       return Right(userEntity);
     } catch (e) {

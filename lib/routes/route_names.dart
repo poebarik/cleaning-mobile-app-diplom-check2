@@ -53,5 +53,11 @@ class RouteNames {
   static const String chatList = '/chat-list';
   static const String chatDetail = '/chat-detail';
 
+  static const forgotPassword = '/forgot-password';
+  static const resetPassword = '/reset-password';
 
+
+  static const String cleanerVerification = '/cleaner-verification';
+  static const String pendingVerifications = '/pending-verifications';
+  static const String reviews = '/reviews';
 }

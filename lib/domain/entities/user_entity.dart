@@ -10,6 +10,7 @@ class UserEntity {
   final String? avatar;
   final double? rating;
   final int? completedOrders;
+  final int? cleanerId;  // ✅ ДОЛЖНО БЫТЬ
 
   UserEntity({
     required this.id,
@@ -21,5 +22,6 @@ class UserEntity {
     this.avatar,
     this.rating,
     this.completedOrders,
+    this.cleanerId,  // ✅ ДОЛЖНО БЫТЬ
   });
 }

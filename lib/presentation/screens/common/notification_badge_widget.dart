@@ -11,23 +11,36 @@ class NotificationBadgeWidget extends ConsumerStatefulWidget {
 }
 
 class _NotificationBadgeWidgetState extends ConsumerState<NotificationBadgeWidget> {
+  bool _isDisposed = false;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(notificationProvider.notifier).loadUnreadCount();
-      ref.read(notificationProvider.notifier).startPolling();
+    // Откладываем загрузку до следующего фрейма
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isDisposed) {
+        // Используем WidgetsBinding.instance.addPostFrameCallback вместо прямого вызова
+        ref.read(notificationProvider.notifier).loadUnreadCount();
+        ref.read(notificationProvider.notifier).startPolling();
+      }
     });
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+    // Отключаем polling при уничтожении виджета
     ref.read(notificationProvider.notifier).stopPolling();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Используем watch только если виджет не уничтожен
+    if (_isDisposed) {
+      return const SizedBox.shrink();
+    }
+
     final notificationState = ref.watch(notificationProvider);
     final unreadCount = notificationState.unreadCount;
 
@@ -35,13 +48,14 @@ class _NotificationBadgeWidgetState extends ConsumerState<NotificationBadgeWidge
       children: [
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
-          onPressed: () {
-            Navigator.push(
+          onPressed: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-            ).then((_) {
+            );
+            if (mounted && !_isDisposed) {
               ref.read(notificationProvider.notifier).loadUnreadCount();
-            });
+            }
           },
         ),
         if (unreadCount > 0)

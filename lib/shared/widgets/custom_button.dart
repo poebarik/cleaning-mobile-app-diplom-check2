@@ -8,6 +8,7 @@ class CustomButton extends StatelessWidget {
   final IconData? icon;
   final Color? backgroundColor;
   final Color? textColor;
+  final bool isEnabled;
 
   const CustomButton({
     super.key,
@@ -18,10 +19,13 @@ class CustomButton extends StatelessWidget {
     this.icon,
     this.backgroundColor,
     this.textColor,
+    this.isEnabled = true
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveOnPressed = isEnabled ? onPressed : null;
+
     final button = isOutlined
         ? OutlinedButton(
       onPressed: isLoading ? null : onPressed,

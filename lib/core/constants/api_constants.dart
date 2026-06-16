@@ -57,10 +57,16 @@ class ApiConstants {
   static const String chatMessages = '$chats/{id}/messages';
   static const String markChatRead = '$chats/{id}/read';
 
-  // ========== FILES ==========
+  // Files endpoints
   static const String uploadFile = '/files/upload';
-  static const String getFile = '/files/{objectName}';
+  static const String getFile = '/files/{objectName}';  // ✅ ДЛЯ PRESIGNED URL
+  static const String downloadFile = '/files/download/{objectName}';  // 🆕 ДЛЯ ПРЯМОЙ ЗАГРУЗКИ
   static const String deleteFile = '/files';
+
+  // Helper method to replace {objectName}
+  static String getFileUrl(String objectName) {
+    return '/files/$objectName';
+  }
 
   // ========== MANAGER ==========
   static const String manager = '/manager';
@@ -79,13 +85,34 @@ class ApiConstants {
   // ========== CLEANERS ==========
   static const String cleaners = '/cleaners';
 
-  // ========== REVIEWS ==========
-  static const String reviews = '/reviews';
-  static const String cleanerReviews = '/reviews/cleaners/{id}';
+
 
   // ========== ADMIN ==========
   static const String admin = '/admin';
   static const String adminStats = '$admin/stats';
   static const String blockUser = '$admin/users/{id}/block';
   static const String unblockUser = '$admin/users/{id}/unblock';
+
+
+  // ========== VERIFICATION (V10) ==========
+  static const String verifications = '/verifications';
+  static const String submitVerification = '$verifications/submit';
+  static const String myVerification = '$verifications/me';
+  static const String pendingVerifications = '$verifications/pending';
+  static const String reviewVerification = '$verifications/{id}/review';
+
+  // ========== USERS ==========
+  static const String users = '/users';
+  static const String userProfile = '/users/profile/{id}';
+  static const String userAvatar = '/users/avatar';
+  static const String userMe = '/users/me';
+  static const String userReviews = '/users/{id}/reviews';  // ✅ УНИВЕРСАЛЬНЫЙ ЭНДПОИНТ
+
+  // ========== REVIEWS - старые эндпоинты (можно удалить, но оставим для совместимости) ==========
+  static const String reviews = '/reviews';
+  static const String myReviews = '/reviews/my';
+  static const String aboutMeReviews = '/reviews/about-me';
+
+
 }
+
