@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 class OrderDraft {
   final String id;
   final int serviceId;
+  final String? serviceName;  // ✅ Добавляем поле
   final String address;
   final DateTime orderDate;
   final int? cleanerId;
@@ -30,6 +31,7 @@ class OrderDraft {
     required this.address,
     required this.orderDate,
     required this.updatedAt,
+    this.serviceName,  // ✅ Добавляем
     this.cleanerId,
     this.creationType,
     this.pricingMode,
@@ -62,7 +64,8 @@ class OrderDraft {
     return address.isNotEmpty ||
         cleaningType != 'MAINTENANCE' ||
         area != null ||
-        rooms.isNotEmpty;
+        rooms.isNotEmpty ||
+        serviceName != null;  // ✅ Добавляем проверку
   }
 
   bool get isValid {
@@ -77,6 +80,7 @@ class OrderDraft {
   OrderDraft copyWith({
     String? id,
     int? serviceId,
+    String? serviceName,  // ✅ Добавляем
     String? address,
     DateTime? orderDate,
     int? cleanerId,
@@ -100,6 +104,7 @@ class OrderDraft {
     return OrderDraft(
       id: id ?? this.id,
       serviceId: serviceId ?? this.serviceId,
+      serviceName: serviceName ?? this.serviceName,  // ✅ Добавляем
       address: address ?? this.address,
       orderDate: orderDate ?? this.orderDate,
       updatedAt: updatedAt ?? DateTime.now(),
@@ -126,6 +131,7 @@ class OrderDraft {
     return OrderDraft(
       id: json['id'] ?? '',
       serviceId: json['serviceId'] ?? 0,
+      serviceName: json['serviceName'],  // ✅ Добавляем
       address: json['address'] ?? '',
       orderDate: DateTime.parse(json['orderDate']),
       updatedAt: DateTime.parse(json['updatedAt']),
@@ -152,6 +158,7 @@ class OrderDraft {
     return {
       'id': id,
       'serviceId': serviceId,
+      'serviceName': serviceName,  // ✅ Добавляем
       'address': address,
       'orderDate': orderDate.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),

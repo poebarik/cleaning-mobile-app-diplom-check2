@@ -148,6 +148,8 @@ extension InvitationStateExtension on InvitationState {
   bool get isMyInvitationsLoaded => this is InvitationStateMyInvitationsLoaded;
   bool get isCleanerInvitationsLoaded => this is InvitationStateCleanerInvitationsLoaded;
   bool get isActionSuccess => this is InvitationStateActionSuccess; // ДОБАВИТЬ ЭТУ СТРОКУ
+  bool get isError => this is InvitationStateError;  // ✅ Добавляем
+
 
   CleanerInvitation? get invitation {
     if (this is InvitationStateCreated) {

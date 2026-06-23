@@ -373,7 +373,7 @@ class _AssignCleanerScreenState extends ConsumerState<AssignCleanerScreen> {
           setState(() => _isAssigning = false);
           if (context.mounted) {
             CustomSnackbar.showSuccess(context, 'Клинер успешно назначен');
-            context.go(RouteNames.managerDashboard);
+            context.go(RouteNames.managerHome);
           }
         }
             : null,

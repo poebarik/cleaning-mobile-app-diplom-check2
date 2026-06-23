@@ -25,14 +25,23 @@ class ResponseRepository {
 
   // Выбрать клинера
   Future<void> selectCleaner(int orderId, int responseId) async {
-    await _dio.post(
-      '${ApiConstants.baseUrl}/orders/$orderId/action',
-      data: {
-        'action': 'SELECT_CLEANER',
-        'payload': {
-          'responseId': responseId,
+    try {
+      print('📤 SELECT_CLEANER: orderId=$orderId, responseId=$responseId');
+
+      await _dio.post(
+        '/orders/$orderId/action',  // ✅ orderId в URL
+        data: {
+          'action': 'SELECT_CLEANER',
+          'payload': {
+            'responseId': responseId,  // ✅ responseId в payload
+          },
         },
-      },
-    );
+      );
+
+      print('✅ Клинер выбран успешно');
+    } catch (e) {
+      print('❌ Ошибка выбора клинера: $e');
+      rethrow;
+    }
   }
 }

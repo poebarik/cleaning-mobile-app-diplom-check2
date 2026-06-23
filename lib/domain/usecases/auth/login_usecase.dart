@@ -13,26 +13,41 @@ class LoginUseCase {
     try {
       final response = await repository.login(email, password);
 
-      print('🔐 Login response FULL: ${response.toJson()}'); // ← Добавьте toJson метод
+      print('🔐 Login response FULL: ${response.toJson()}');
 
-      print('🔐 Login response - userId: ${response.userId}, cleanerId: ${response.cleanerId}');
+      // ✅ Извлекаем avatarUrl из ответа
+      String? avatarUrl = response.avatarUrl;
+
+      // Если avatarUrl нет, пробуем из user данных
+      if (avatarUrl == null && response.user != null) {
+        avatarUrl = response.user?.avatarUrl;
+      }
+
+      print('📸 Avatar URL from response: $avatarUrl');
 
       final userEntity = UserEntity(
-        id: response.userId ?? 0,
-        fullName: response.fullName ?? '',
-        email: response.email ?? email,
-        phone: '',
-        role: UserRoleExtension.fromString(response.role ?? 'CLIENT'),
+        id: response.userId ?? response.user?.id ?? 0,
+        fullName: response.fullName ?? response.user?.fullName ?? '',
+        email: response.email ?? response.user?.email ?? email,
+        phone: response.phone ?? response.user?.phone ?? '',
+        role: UserRoleExtension.fromString(response.role ?? response.user?.role ?? 'CLIENT'),
         isActive: true,
-        avatar: null,
-        rating: null,
-        completedOrders: null,
-        cleanerId: response.cleanerId,
+        avatar: avatarUrl,  // ✅ Сохраняем avatarUrl
+        rating: response.rating ?? response.user?.rating,
+        completedOrders: response.completedOrders ?? response.user?.completedOrders,
+        cleanerId: response.cleanerId ?? response.user?.cleanerId,
+        description: response.description ?? response.user?.description,
       );
 
-      print('✅ UserEntity created - id: ${userEntity.id}, cleanerId: ${userEntity.cleanerId}');
+      print('✅ UserEntity created:');
+      print('  - id: ${userEntity.id}');
+      print('  - fullName: ${userEntity.fullName}');
+      print('  - avatar: ${userEntity.avatar}');
+      print('  - cleanerId: ${userEntity.cleanerId}');
+
       return Right(userEntity);
     } catch (e) {
+      print('❌ Login error: $e');
       return Left(Failure(e.toString()));
     }
   }

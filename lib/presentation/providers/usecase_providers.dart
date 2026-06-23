@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/datasources/remote/invitation_api.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/invitation_repository.dart';
 import '../../domain/usecases/auth/forgot_password_usecase.dart';
 import '../../domain/usecases/auth/login_usecase.dart';
 import '../../domain/usecases/auth/register_usecase.dart';
@@ -58,4 +60,11 @@ final resetPasswordUseCaseProvider = Provider<ResetPasswordUseCase>((ref) {
 });
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return OrderRepository();
+});
+final invitationApiProvider = Provider<InvitationApi>((ref) {
+  return InvitationApi(DioClient.instance);
+});
+
+final invitationRepositoryProvider = Provider<InvitationRepository>((ref) {
+  return InvitationRepository();
 });

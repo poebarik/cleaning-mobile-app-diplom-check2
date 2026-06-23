@@ -20,6 +20,7 @@ class Step4CleaningType extends StatefulWidget {
 
 class _Step4CleaningTypeState extends State<Step4CleaningType> {
   late OrderWizardState _currentState;
+  final TextEditingController _customController = TextEditingController();
 
   final Map<String, Map<String, dynamic>> _cleaningTypes = const {
     'MAINTENANCE': {'icon': Icons.cleaning_services, 'label': 'Поддерживающая', 'desc': 'Регулярная уборка для поддержания чистоты'},
@@ -34,6 +35,9 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
   void initState() {
     super.initState();
     _currentState = widget.state;
+
+    // ✅ Обновляем контроллер при инициализации
+    _updateControllerFromState();
   }
 
   @override
@@ -42,7 +46,31 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
     if (oldWidget.state != widget.state) {
       setState(() {
         _currentState = widget.state;
+        _updateControllerFromState();
       });
+    }
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  // ✅ Метод для обновления контроллера из состояния
+  void _updateControllerFromState() {
+    final serviceName = widget.state.serviceName;
+    print('📸 _updateControllerFromState: serviceName = $serviceName');
+
+    if (serviceName != null && serviceName.isNotEmpty) {
+      if (_customController.text != serviceName) {
+        _customController.text = serviceName;
+        print('📸 Установлено значение контроллера: $serviceName');
+      }
+    } else {
+      if (_customController.text.isNotEmpty) {
+        _customController.clear();
+      }
     }
   }
 
@@ -50,6 +78,7 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
     setState(() {
       update();
       _currentState = widget.notifier.state;
+      _updateControllerFromState();
     });
     widget.onStateChanged?.call();
   }
@@ -57,6 +86,16 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // ✅ Проверяем, выбрана ли услуга
+    final isServiceSelected = widget.state.serviceName != null && widget.state.serviceName!.isNotEmpty;
+
+    // ✅ Логируем для отладки
+    print('📸 Step4CleaningType build:');
+    print('  - serviceName: ${widget.state.serviceName}');
+    print('  - isServiceSelected: $isServiceSelected');
+    print('  - cleaningType: ${widget.state.cleaningType}');
+    print('  - controller.text: ${_customController.text}');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -77,6 +116,51 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
             ),
           ),
           const SizedBox(height: 32),
+
+          // ✅ Если выбрана услуга - показываем её название
+          if (isServiceSelected) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Выбрана услуга:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          widget.state.serviceName!,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.green.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Список типов уборки
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -87,34 +171,140 @@ class _Step4CleaningTypeState extends State<Step4CleaningType> {
               final type = _cleaningTypes[key]!;
               final isSelected = _currentState.cleaningType == key;
 
+              // ✅ Если выбрана услуга - делаем выбор CUSTOM активным по умолчанию
+              final isCustomSelected = isServiceSelected && key == 'CUSTOM';
+
               return _buildCleaningOption(
                 context: context,
                 icon: type['icon'],
                 label: type['label'],
                 description: type['desc'],
-                isSelected: isSelected,
+                isSelected: isSelected || isCustomSelected,
                 onTap: () => _updateState(() {
                   widget.notifier.updateCleaningType(key);
                 }),
               );
             },
           ),
+
+          // ✅ Поле для ввода названия услуги (для CUSTOM типа)
           if (_currentState.cleaningType == 'CUSTOM') ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.edit_note, color: theme.colorScheme.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Укажите название услуги',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _customController,
+                    decoration: InputDecoration(
+                      hintText: 'Например: Уборка кухни',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade400,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: theme.colorScheme.primary),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      suffixIcon: _customController.text.isNotEmpty
+                          ? IconButton(
+                        icon: Icon(Icons.clear, size: 18, color: Colors.grey.shade400),
+                        onPressed: () {
+                          setState(() {
+                            _customController.clear();
+                            widget.notifier.updateServiceName(null);
+                          });
+                        },
+                      )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      print('📸 Поле ввода изменено: $value');
+                      if (value.isNotEmpty) {
+                        widget.notifier.updateServiceName(value);
+                      } else {
+                        widget.notifier.updateServiceName(null);
+                      }
+                      // ✅ Обновляем состояние
+                      setState(() {});
+                    },
+                  ),
+
+                  // ✅ Отображение текущего названия услуги
+                  if (_customController.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Услуга сохранена: ${_customController.text}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+
+          // ✅ Если выбрана услуга с CUSTOM типом - показываем подсказку
+          if (isServiceSelected && _currentState.cleaningType == 'CUSTOM') ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.1),
+                color: Colors.blue.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info, color: theme.colorScheme.primary),
+                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Вы выбрали "Другое". Пожалуйста, уточните в заметках (шаг 10)',
-                      style: theme.textTheme.bodySmall,
+                      'Вы можете изменить название услуги в поле выше',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.blue.shade700,
+                      ),
                     ),
                   ),
                 ],

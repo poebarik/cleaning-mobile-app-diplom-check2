@@ -6,7 +6,7 @@ class RouteNames {
 
   // Client routes
   static const String clientHome = '/client-home';
-  static const String createOrder = '/create-order';
+  static const String createOrder = '/draft-order';
   static const String createCompanyOrder = '/create-company-order';
   static const String createMarketplaceOrder = '/create-marketplace-order';
   static const String myOrders = '/my-orders';
@@ -31,10 +31,11 @@ class RouteNames {
   static const String statistics = '/statistics';
 
   // Common
-  static const String profile = '/profile';
+  static const String profile = '/my-profile';
   static const String editProfile = '/edit-profile';
   static const String notifications = '/notifications';
 
+  static const String managerHome = '/manager-home';
   static const String managerDashboard = '/manager-dashboard';
   static const String pendingOrders = '/pending-orders';
   static const String assignCleaner = '/assign-cleaner';
@@ -60,4 +61,7 @@ class RouteNames {
   static const String cleanerVerification = '/cleaner-verification';
   static const String pendingVerifications = '/pending-verifications';
   static const String reviews = '/reviews';
+
+  static const String myProfile = 'my-profile';
+
 }

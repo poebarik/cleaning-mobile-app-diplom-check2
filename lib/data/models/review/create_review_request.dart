@@ -1,10 +1,11 @@
 // lib/data/models/review/create_review_request.dart
+
 class CreateReviewRequest {
   final int orderId;
-  final int targetUserId;
+  final int targetUserId;      // ✅ УЖЕ ЕСТЬ В КОНСТРУКТОРЕ
   final int rating;
   final String comment;
-  final String reviewType; // "CLIENT_TO_CLEANER" или "CLEANER_TO_CLIENT"
+  final String reviewType;
   final List<String>? imageObjectNames;
 
   CreateReviewRequest({
@@ -17,16 +18,13 @@ class CreateReviewRequest {
   });
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
+    return {
       'orderId': orderId,
-      'targetUserId': targetUserId,
+      'targetUserId': targetUserId,  // ✅ ДОБАВИТЬ ЭТУ СТРОКУ!
       'rating': rating,
       'comment': comment,
+      'imageObjectNames': imageObjectNames ?? [],
       'reviewType': reviewType,
     };
-    if (imageObjectNames != null && imageObjectNames!.isNotEmpty) {
-      map['imageObjectNames'] = imageObjectNames;
-    }
-    return map;
   }
 }

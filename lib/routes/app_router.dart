@@ -6,28 +6,28 @@ import '../data/models/chat/chat.dart';
 import '../presentation/screens/auth/forgot_password_screen.dart';
 import '../presentation/screens/auth/reset_password_screen.dart';
 import '../presentation/screens/client/draft_order_screen.dart';
+import '../presentation/screens/client/order_offers_screen.dart';
 import '../presentation/screens/client/responses_screen.dart';
+import '../presentation/screens/client/search_screen.dart';
+import '../presentation/screens/client/select_cleaner_screen.dart';
+import '../presentation/screens/common/my_profile_screen.dart';
 import '../presentation/screens/common/profile_screen.dart';
-import '../presentation/screens/reviews/create_review_screen.dart';
-
 import '../presentation/screens/reviews/create_review_screen.dart';
 import '../presentation/screens/splash/splash_screen.dart';
 import '../presentation/screens/auth/login_screen.dart';
 import '../presentation/screens/auth/register_screen.dart';
-import '../presentation/screens/client/home_screen.dart';
+import '../presentation/screens/client/client_main_screenNav.dart';
 import '../presentation/screens/client/create_order_screen.dart';
-import '../presentation/screens/client/create_company_order_screen.dart';
-import '../presentation/screens/client/create_marketplace_order_screen.dart';
-import '../presentation/screens/client/my_orders_screen.dart';
 import '../presentation/screens/client/cleaner_list_screen.dart';
-import '../presentation/screens/client/cleaner_details_screen.dart';
 import '../presentation/screens/client/order_details_screen.dart';
 import '../presentation/screens/cleaner/home_screen.dart';
+import '../presentation/screens/cleaner/cleaner_main_screenNav.dart';
 import '../presentation/screens/cleaner/open_jobs_screen.dart';
 import '../presentation/screens/cleaner/assigned_orders_screen.dart';
 import '../presentation/screens/cleaner/job_details_screen.dart';
 import '../presentation/screens/admin/dashboard_screen.dart';
 import '../presentation/screens/manager/manager_dashboard_screen.dart';
+import '../presentation/screens/manager/manager_main_screen_nav.dart';
 import '../presentation/screens/manager/pending_orders_screen.dart';
 import '../presentation/screens/manager/assign_cleaner_screen.dart';
 import '../presentation/screens/manager/cleaners_workload_screen.dart';
@@ -35,7 +35,6 @@ import '../presentation/screens/manager/manager_stats_screen.dart';
 import '../presentation/screens/notifications/notifications_screen.dart';
 
 import '../presentation/screens/client/invitation_details_screen.dart';
-import '../presentation/screens/client/invitation_screen.dart';
 import '../presentation/screens/cleaner/my_invitations_screen.dart';
 import '../presentation/screens/chat/chat_list_screen.dart';
 import '../presentation/screens/chat/chat_detail_screen.dart';
@@ -77,12 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.clientHome,
         name: RouteNames.clientHome,
-        builder: (context, state) => const ClientHomeScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.createOrder,
-        name: RouteNames.createOrder,
-        builder: (context, state) => const CreateOrderScreen(),
+        builder: (context, state) => const ClientMainScreen(initialTab: 0),
       ),
       // GoRoute(
       //   path: RouteNames.createCompanyOrder,
@@ -97,7 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.myOrders,
         name: RouteNames.myOrders,
-        builder: (context, state) => const MyOrdersScreen(),
+        builder: (context, state) => const ClientMainScreen(initialTab: 1),
       ),
       GoRoute(
         path: RouteNames.cleanerList,
@@ -139,7 +133,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.cleanerHome,
         name: RouteNames.cleanerHome,
-        builder: (context, state) => const CleanerHomeScreen(),
+        builder: (context, state) => const CleanerMainScreen(initialTab: 0),
       ),
       GoRoute(
         path: RouteNames.openJobs,
@@ -149,7 +143,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.assignedOrders,
         name: RouteNames.assignedOrders,
-        builder: (context, state) => const AssignedOrdersScreen(),
+        builder: (context, state) => const CleanerMainScreen(initialTab: 1),
       ),
 
       // Admin routes
@@ -161,9 +155,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Manager routes
       GoRoute(
+        path: RouteNames.managerHome,
+        name: RouteNames.managerHome,
+        builder: (context, state) => const ManagerMainScreen(initialTab: 0),
+      ),
+      GoRoute(
         path: RouteNames.managerDashboard,
         name: RouteNames.managerDashboard,
-        builder: (context, state) => const ManagerDashboardScreen(),
+        builder: (context, state) => const ManagerMainScreen(initialTab: 0),
       ),
       GoRoute(
         path: RouteNames.pendingOrders,
@@ -211,21 +210,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.myInvitations,
         name: RouteNames.myInvitations,
-        builder: (context, state) => const MyInvitationsScreen(),
+        builder: (context, state) => const CleanerMainScreen(initialTab: 2),
       ),
       GoRoute(
-        path: '${RouteNames.createInvitation}/:orderId/:cleanerId',
-        name: RouteNames.createInvitation,
+        path: '/select-cleaner/:orderId',
+        name: 'selectCleaner',
         builder: (context, state) {
           final orderId = int.parse(state.pathParameters['orderId']!);
-          final cleanerId = int.parse(state.pathParameters['cleanerId']!);
-          final cleanerName = state.uri.queryParameters['cleanerName'] ?? '';
-          final cleanerRating = double.tryParse(state.uri.queryParameters['cleanerRating'] ?? '');
-          return InvitationScreen(
+          final extra = state.extra as Map<String, dynamic>?;
+          return SelectCleanerScreen(
             orderId: orderId,
-            cleanerId: cleanerId,
-            cleanerName: cleanerName,
-            cleanerRating: cleanerRating,
+            budget: extra?['budget'] as double?,
           );
         },
       ),
@@ -260,7 +255,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             case 'CLEANER':
               return RouteNames.cleanerHome;
             case 'MANAGER':
-              return RouteNames.managerDashboard;
+              return RouteNames.managerHome;
             case 'ADMIN':
               return RouteNames.adminDashboard;
             default:
@@ -381,12 +376,52 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/create-order-draft',
-        name: 'createOrderDraft',
-        builder: (context, state) => const DraftOrderScreen(),
-      ),
+      // lib/routes/router.dart
 
+      GoRoute(
+        path: '/draft-order',
+        name: 'draftOrder',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return DraftOrderScreen(
+            initialCleaningType: extra?['initialCleaningType'] as String?,
+            initialTemplateName: extra?['initialTemplateName'] as String?,
+            serviceId: extra?['serviceId'] as int?,
+            serviceName: extra?['serviceName'] as String?,
+            servicePrice: extra?['servicePrice'] as double?,
+            serviceDescription: extra?['serviceDescription'] as String?,
+            cleaningType: extra?['cleaningType'] as String?,  // ✅ Добавляем
+          );
+        },
+      ),
+      GoRoute(
+        path: '/order-offers/:orderId',
+        name: 'orderOffers',
+        builder: (context, state) {
+          final orderId = int.parse(state.pathParameters['orderId']!);
+          final extra = state.extra as Map<String, dynamic>?;
+          return OrderOffersScreen(
+            orderId: orderId,
+            orderBudget: extra?['budget'] as double?,
+            fulfillmentType: extra?['fulfillmentType'] as String? ?? 'MARKETPLACE',
+          );
+        },
+      ),
+      GoRoute(
+        path: '/all-order-offers',
+        name: 'allOrderOffers',
+        builder: (context, state) => const ClientMainScreen(initialTab: 2),
+      ),
+      GoRoute(
+        path: '/my-profile',
+        name: RouteNames.myProfile,
+        builder: (context, state) => const MyProfileScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        name: 'search',
+        builder: (context, state) => const SearchScreen(),
+      ),
 
     ],
   );

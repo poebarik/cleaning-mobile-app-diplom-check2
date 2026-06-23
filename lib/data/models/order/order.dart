@@ -1,13 +1,15 @@
+// lib/data/models/order/order.dart
 import 'order_response.dart';
 import 'order_specification_dto.dart';
 
 class Order {
   final int id;
-  final int? clientId;           // ✅ nullable
+  final int? clientId;
+  final int? userId;
   final String clientName;
   final int? cleanerId;
   final String? cleanerName;
-  final int? serviceId;          // ✅ nullable
+  final int? serviceId;
   final String serviceName;
   final double servicePrice;
   final String address;
@@ -20,10 +22,11 @@ class Order {
   final DateTime? updatedAt;
   final int? jobPostId;
   final OrderSpecificationDTO? specification;
-
-
-
+  final String? clientAvatarUrl;
+  final String? selectedCleanerAvatarUrl;
+  final String? selectedCleanerName;
   final bool? isDirectInvitation;
+  final bool? isMarketplace; // ✅ Добавляем поле
   final int? invitationId;
   final List<String>? imageObjectNames;
   final List<OrderResponse>? responses;
@@ -31,6 +34,7 @@ class Order {
   Order({
     required this.id,
     this.clientId,
+    this.userId,
     required this.clientName,
     this.cleanerId,
     this.cleanerName,
@@ -46,18 +50,35 @@ class Order {
     required this.createdAt,
     this.updatedAt,
     this.isDirectInvitation,
+    this.isMarketplace, // ✅ Добавляем в конструктор
     this.invitationId,
     this.imageObjectNames,
     this.responses,
     this.jobPostId,
-    this.specification
-
+    this.specification,
+    this.clientAvatarUrl,
+    this.selectedCleanerAvatarUrl,
+    this.selectedCleanerName,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    // ✅ Безопасно парсим userId с проверкой на null
+    int? userId;
+    if (json['userId'] != null) {
+      userId = json['userId'] as int?;
+    } else if (json['clientId'] != null) {
+      userId = json['clientId'] as int?;
+    }
+
+    print('📦 Order.fromJson:');
+    print('  - id: ${json['id']}');
+    print('  - userId: $userId');
+    print('  - clientName: ${json['clientName']}');
+
     return Order(
-      id: json['id'] as int,
+      id: json['id'] as int? ?? 0,
       clientId: json['clientId'] as int?,
+      userId: userId,
       clientName: json['clientName'] as String? ?? '',
       cleanerId: json['cleanerId'] as int?,
       cleanerName: json['cleanerName'] as String?,
@@ -79,6 +100,7 @@ class Order {
           ? DateTime.parse(json['updatedAt'])
           : null,
       isDirectInvitation: json['isDirectInvitation'] as bool?,
+      isMarketplace: json['isMarketplace'] as bool?, // ✅ Парсим
       invitationId: json['invitationId'] as int?,
       imageObjectNames: json['imageObjectNames'] != null
           ? List<String>.from(json['imageObjectNames'])
@@ -92,7 +114,9 @@ class Order {
       specification: json['specification'] != null
           ? OrderSpecificationDTO.fromJson(json['specification'])
           : null,
-
+      clientAvatarUrl: json['clientAvatarUrl'] as String?,
+      selectedCleanerAvatarUrl: json['selectedCleanerAvatarUrl'] as String?,
+      selectedCleanerName: json['selectedCleanerName'] as String?,
     );
   }
 
@@ -100,6 +124,7 @@ class Order {
     return {
       'id': id,
       'clientId': clientId,
+      'userId': userId,
       'clientName': clientName,
       'cleanerId': cleanerId,
       'cleanerName': cleanerName,
@@ -115,8 +140,12 @@ class Order {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'isDirectInvitation': isDirectInvitation,
+      'isMarketplace': isMarketplace, // ✅ Добавляем в toJson
       'invitationId': invitationId,
       'imageObjectNames': imageObjectNames,
+      'clientAvatarUrl': clientAvatarUrl,
+      'selectedCleanerAvatarUrl': selectedCleanerAvatarUrl,
+      'selectedCleanerName': selectedCleanerName,
     };
   }
 }

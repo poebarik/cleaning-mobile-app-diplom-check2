@@ -47,21 +47,10 @@ class _Step1PreferencesState extends State<Step1Preferences> {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 32),
-          _buildOption(
-            context: context,
-            icon: Icons.format_list_numbered,
-            title: 'До 6 предложений специалистов',
-            subtitle: 'Специалисты предложат свои цены, вы выберете лучший вариант',
-            isSelected: _currentState.creationType == OrderCreationType.limitedBids,
-            onTap: () {
-              setState(() {
-                widget.notifier.updateCreationType(OrderCreationType.limitedBids);
-                _currentState = widget.notifier.state;
-              });
-            },
-          ),
+
           const SizedBox(height: 16),
+
+          // 1. Открытый рынок
           _buildOption(
             context: context,
             icon: Icons.public,
@@ -69,13 +58,15 @@ class _Step1PreferencesState extends State<Step1Preferences> {
             subtitle: 'Просматривайте всех специалистов и их предложения',
             isSelected: _currentState.creationType == OrderCreationType.openMarket,
             onTap: () {
-              setState(() {
+              _updateState(() {
                 widget.notifier.updateCreationType(OrderCreationType.openMarket);
-                _currentState = widget.notifier.state;
               });
             },
           ),
+
           const SizedBox(height: 16),
+
+          // 2. Выбрать компанию
           _buildOption(
             context: context,
             icon: Icons.business,
@@ -83,15 +74,37 @@ class _Step1PreferencesState extends State<Step1Preferences> {
             subtitle: 'Компания сама назначит специалиста',
             isSelected: _currentState.creationType == OrderCreationType.companyAssigned,
             onTap: () {
-              setState(() {
+              _updateState(() {
                 widget.notifier.updateCreationType(OrderCreationType.companyAssigned);
-                _currentState = widget.notifier.state;
+              });
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // 3. Пригласить клинера
+          _buildOption(
+            context: context,
+            icon: Icons.person_add,
+            title: 'Пригласить клинера',
+            subtitle: 'Выберите конкретного специалиста',
+            isSelected: _currentState.creationType == OrderCreationType.directInvitation,
+            onTap: () {
+              _updateState(() {
+                widget.notifier.updateCreationType(OrderCreationType.directInvitation);
               });
             },
           ),
         ],
       ),
     );
+  }
+
+  void _updateState(VoidCallback update) {
+    setState(() {
+      update();
+      _currentState = widget.notifier.state;
+    });
   }
 
   Widget _buildOption({

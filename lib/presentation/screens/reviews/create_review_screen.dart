@@ -38,6 +38,8 @@ class _CreateReviewScreenState extends ConsumerState<CreateReviewScreen> {
   List<String> _uploadedImages = [];
   bool _isLoading = false;
   bool _isUploading = false;
+  List<String> _imageObjectNames = [];
+  bool _isSubmitting = false;
 
   final List<Map<String, dynamic>> _ratingOptions = [
     {'value': 1, 'label': 'Ужасно', 'icon': Icons.sentiment_very_dissatisfied},
@@ -54,52 +56,41 @@ class _CreateReviewScreenState extends ConsumerState<CreateReviewScreen> {
   }
 
 
+  // lib/presentation/screens/reviews/create_review_screen.dart
+
   Future<void> _submitReview() async {
-    if (_formKey.currentState!.validate() && _rating > 0) {
-      setState(() => _isLoading = true);
-
-      try {
-        final request = CreateReviewRequest(
-          orderId: widget.orderId,
-          targetUserId: widget.targetUserId,
-          rating: _rating,
-          comment: _commentController.text,
-          reviewType: widget.reviewType,
-          imageObjectNames: _uploadedImages.isNotEmpty ? _uploadedImages : null,
-        );
-
-        // ✅ ДОБАВЬТЕ ЛОГИРОВАНИЕ ЗАПРОСА
-        print('📤 Отправка отзыва:');
-        print('  orderId: ${request.orderId}');
-        print('  targetUserId: ${request.targetUserId}');
-        print('  rating: ${request.rating}');
-        print('  comment: ${request.comment}');
-        print('  reviewType: ${request.reviewType}');
-        print('  images: ${request.imageObjectNames}');
-
-        final repository = ReviewRepository();
-        await repository.createReview(request);
-
-        if (mounted) {
-          CustomSnackbar.showSuccess(context, 'Спасибо за отзыв!');
-          context.pop(true);
-        }
-      } catch (e) {
-        print('❌ Ошибка при создании отзыва: $e');
-        if (e is DioException) {
-          print('  Response data: ${e.response?.data}');
-          print('  Response status: ${e.response?.statusCode}');
-        }
-        if (mounted) {
-          CustomSnackbar.showError(context, 'Ошибка: ${e.toString()}');
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      }
-    } else if (_rating == 0) {
+    if (_rating == 0) {
       CustomSnackbar.showError(context, 'Пожалуйста, поставьте оценку');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final reviewRepo = ReviewRepository();
+      final request = CreateReviewRequest(
+        orderId: widget.orderId,
+        targetUserId: widget.targetUserId,
+        rating: _rating,
+        comment: _commentController.text.trim(),
+        reviewType: widget.reviewType,
+        imageObjectNames: _imageObjectNames,
+      );
+
+      final review = await reviewRepo.createReview(request);
+      print('✅ Отзыв создан: ${review.id}');
+
+      if (mounted) {
+        CustomSnackbar.showSuccess(context, 'Отзыв успешно отправлен!');
+        // ✅ Возвращаем true, чтобы обновить список на предыдущем экране
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackbar.showError(context, 'Ошибка: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 

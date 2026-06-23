@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/order/order_specification_dto.dart';
 import '../../../routes/route_names.dart';
@@ -10,7 +12,6 @@ import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_snackbar.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../providers/auth_provider.dart';
-import '../reviews/create_review_screen.dart';
 
 class OrderDetailsScreen extends ConsumerStatefulWidget {
   final int orderId;
@@ -21,11 +22,15 @@ class OrderDetailsScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderDetailsScreen> createState() => _OrderDetailsScreenState();
 }
 
-class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
+class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _order;
   bool _isLoading = true;
   String? _error;
   bool _isReviewing = false;
+
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   final _steps = [
     {'key': 'PENDING', 'label': 'Создан', 'icon': Icons.add_circle_outline_rounded},
@@ -34,15 +39,44 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     {'key': 'COMPLETED', 'label': 'Завершён', 'icon': Icons.verified_rounded},
   ];
 
+  // ─── Цветовая палитра ─────────────────────────────────────────────
+  static const Color _primaryPurple = Color(0xFF6C5CE7);
+  static const Color _secondaryPurple = Color(0xFFA29BFE);
+  static const Color _accentTeal = Color(0xFF00CEC9);
+  static const Color _accentOrange = Color(0xFFFFA94D);
+  static const Color _accentRed = Color(0xFFFF6B6B);
+  static const Color _successGreen = Color(0xFF00B894);
+  static const Color _darkText = Color(0xFF2D3436);
+  static const Color _grayText = Color(0xFF636E72);
+  static const Color _lightGray = Color(0xFFB2BEC3);
+  static const Color _bgLight = Color(0xFFF8F9FA);
+  static const Color _bgCard = Color(0xFFF0EFF8);
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    );
+    _animationController.forward();
+
     if (widget.orderData != null) {
       _order = widget.orderData;
       _isLoading = false;
     } else {
       _loadOrder();
     }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadOrder() async {
@@ -195,21 +229,21 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Отзыв можно оставить только после завершения заказа',
-                  style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                  style: TextStyle(fontSize: 12, color: _grayText),
                 ),
               ],
               if (isCompleted && hasReviewed) ...[
                 const SizedBox(height: 8),
                 Text(
                   'Вы уже оставили отзыв на этот заказ',
-                  style: TextStyle(fontSize: 12, color: Colors.green),
+                  style: TextStyle(fontSize: 12, color: _successGreen),
                 ),
               ],
               if (isCompleted && targetCleanerId == 0 && !hasReviewed) ...[
                 const SizedBox(height: 8),
                 Text(
                   'Невозможно оставить отзыв: данные о клинере не найдены',
-                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                  style: TextStyle(fontSize: 12, color: _accentOrange),
                 ),
               ],
             ],
@@ -219,66 +253,65 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     );
   }
 
-  // В OrderDetailsScreen, обновите _buildPhotosCard метод:
-
   Widget _buildPhotosCard() {
     List<String> images = [];
 
-    // 🔍 Поиск фото в заказе (как в ProfileScreen)
-    // 1. Проверяем в корне заказа
     if (_order!['imageObjectNames'] != null && _order!['imageObjectNames'] is List) {
       images = List<String>.from(_order!['imageObjectNames']);
-      print('📸 Found ${images.length} images in order root: $images');
     }
 
-    // 2. Проверяем в спецификации (если фото там)
     if (images.isEmpty && _order!['specification'] != null) {
       final spec = _order!['specification'];
       if (spec['imageObjectNames'] != null && spec['imageObjectNames'] is List) {
         images = List<String>.from(spec['imageObjectNames']);
-        print('📸 Found ${images.length} images in specification: $images');
       }
     }
 
-    // 3. Проверяем в других возможных полях
     if (images.isEmpty && _order!['images'] != null && _order!['images'] is List) {
       images = List<String>.from(_order!['images']);
-      print('📸 Found ${images.length} images in images field: $images');
     }
 
-    // 4. Проверяем в поле photos
     if (images.isEmpty && _order!['photos'] != null && _order!['photos'] is List) {
       images = List<String>.from(_order!['photos']);
-      print('📸 Found ${images.length} images in photos field: $images');
     }
 
-    if (images.isEmpty) {
-      print('📸 No images found for order #${_order!['id']}');
-      return const SizedBox.shrink();
-    }
+    if (images.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.photo_library, size: 20, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text(
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.photo_library, size: 18, color: _primaryPurple),
+              ),
+              const SizedBox(width: 10),
+              const Text(
                 'Фотографии помещения',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
-                  color: AppColors.textPrimary,
+                  color: _darkText,
                 ),
               ),
             ],
@@ -291,8 +324,6 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               itemCount: images.length,
               itemBuilder: (context, index) {
                 final imageUrl = '${ApiConstants.baseUrl}/files/${images[index]}';
-                print('📸 Loading image $index: $imageUrl');
-
                 return GestureDetector(
                   onTap: () => _showFullScreenImage(imageUrl),
                   child: Container(
@@ -301,40 +332,30 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     margin: const EdgeInsets.only(right: 12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
+                      border: Border.all(color: const Color(0xFFEEF0F5)),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        imageUrl,
-                        width: 120,
-                        height: 120,
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: AppColors.background,
-                            child: Center(
-                              child: SizedBox(
-                                width: 30,
-                                height: 30,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              ),
+                        placeholder: (context, url) => Container(
+                          color: _bgLight,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _primaryPurple,
                             ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          print('❌ Error loading image $index: $error');
-                          return Container(
-                            color: AppColors.background,
-                            child: const Icon(Icons.broken_image, size: 40, color: AppColors.textHint),
-                          );
-                        },
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: _bgLight,
+                          child: const Icon(
+                            Icons.broken_image_rounded,
+                            size: 32,
+                            color: _lightGray,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -347,40 +368,47 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     );
   }
 
-// Добавьте метод для показа полноэкранного изображения
   void _showFullScreenImage(String imageUrl) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.zero,
         child: Stack(
           alignment: Alignment.center,
           children: [
             InteractiveViewer(
               minScale: 0.5,
               maxScale: 4.0,
-              child: Image.network(
-                imageUrl,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 50, color: Colors.white),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => Container(
+                    color: Colors.black,
+                    child: const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.black,
+                    child: const Icon(Icons.error, size: 50, color: Colors.white),
+                  ),
+                ),
               ),
             ),
             Positioned(
-              top: 40,
+              top: 20,
               right: 20,
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black54,
+                    color: Colors.black.withOpacity(0.5),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 24),
+                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                 ),
               ),
             ),
@@ -393,111 +421,155 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(child: CircularProgressIndicator(color: _primaryPurple))
           : _error != null
           ? _buildError()
           : _order == null
           ? const Center(child: Text('Заказ не найден'))
-          : CustomScrollView(
-        slivers: [
-          _buildSliverHeader(),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTimeline(),
-                  const SizedBox(height: 20),
-                  _buildDetailsCard(),
-                  const SizedBox(height: 20),
-                  if (_order!['description'] != null && _order!['description'] != '')
-                    _buildDescriptionCard(),
-                  const SizedBox(height: 20),
-                  _buildPhotosCard(), // Добавляем секцию с фото
-                  const SizedBox(height: 20),
-                  _buildSpecificationCard(),
-                  const SizedBox(height: 20),
-                  if (_order!['cleanerName'] != null)
-                    _buildCleanerCard(),
-                  const SizedBox(height: 20),
-                  _buildReviewButton(),
-                  const SizedBox(height: 100),
-                ],
+          : RefreshIndicator(
+        onRefresh: _loadOrder,
+        color: _primaryPurple,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: CustomScrollView(
+            slivers: [
+              _buildSliverHeader(),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTimeline(),
+                      const SizedBox(height: 20),
+                      _buildDetailsCard(),
+                      const SizedBox(height: 20),
+                      if (_order!['description'] != null && _order!['description'] != '')
+                        _buildDescriptionCard(),
+                      const SizedBox(height: 20),
+                      _buildPhotosCard(),
+                      const SizedBox(height: 20),
+                      _buildSpecificationCard(),
+                      const SizedBox(height: 20),
+                      if (_order!['cleanerName'] != null)
+                        _buildCleanerCard(),
+                      const SizedBox(height: 20),
+                      _buildReviewButton(),
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildSliverHeader() {
+    final status = _order!['status'] ?? 'PENDING';
+    final isCancelled = status == 'CANCELLED';
+
     return SliverAppBar(
-      expandedHeight: 180,
+      expandedHeight: 110,
       pinned: true,
-      backgroundColor: AppColors.primary,
-      leading: GestureDetector(
-        onTap: () => context.pop(),
-        child: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-        ),
-      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: AppColors.gradient,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
+              colors: [_primaryPurple, _secondaryPurple],
             ),
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.cleaning_services_rounded, color: Colors.white, size: 28),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _order!['serviceName'] ?? 'Уборка',
-                          style: const TextStyle(
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.pop(),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
                             color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Poppins',
+                            size: 18,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Заказ № ${_order!['id']}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 13, fontFamily: 'Poppins'),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.cleaning_services_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _order!['serviceName'] ?? 'Уборка',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Poppins',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+
+                          ],
+                        ),
+                      ),
+                      StatusChip(status: status, isSmall: true),
+                    ],
+                  ),
+                  if (isCancelled) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.cancel_rounded, color: Colors.white, size: 16),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Заказ отменён',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  StatusChip(status: _order!['status'] ?? 'PENDING', isSmall: true),
+                  ],
                 ],
               ),
             ),
@@ -512,28 +584,67 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final isCancelled = _order?['status'] == 'CANCELLED';
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Статус заказа', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.timeline_rounded, size: 18, color: _primaryPurple),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Статус заказа',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: _darkText,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           if (isCancelled)
-            Row(
-              children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.cancel_rounded, color: AppColors.error, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text('Заказ отменён', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.error)),
-              ],
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _accentRed.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.cancel_rounded, color: _accentRed, size: 20),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Заказ отменён',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: _accentRed,
+                    ),
+                  ),
+                ],
+              ),
             )
           else
             Row(
@@ -551,17 +662,24 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         child: Column(
                           children: [
                             Container(
-                              width: 36, height: 36,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                gradient: isDone ? const LinearGradient(colors: AppColors.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
-                                color: isDone ? null : AppColors.divider,
+                                gradient: isDone
+                                    ? const LinearGradient(
+                                  colors: [_primaryPurple, _secondaryPurple],
+                                )
+                                    : null,
+                                color: isDone ? null : _bgLight,
                                 shape: BoxShape.circle,
-                                border: isCurrent ? Border.all(color: AppColors.primary, width: 2.5) : null,
+                                border: isCurrent
+                                    ? Border.all(color: _primaryPurple, width: 2.5)
+                                    : null,
                               ),
                               child: Icon(
                                 step['icon'] as IconData,
                                 size: 18,
-                                color: isDone ? Colors.white : AppColors.textHint,
+                                color: isDone ? Colors.white : _lightGray,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -571,7 +689,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                                 fontFamily: 'Poppins',
                                 fontSize: 10,
                                 fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-                                color: isDone ? AppColors.primary : AppColors.textHint,
+                                color: isDone ? _primaryPurple : _lightGray,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -582,7 +700,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                         Container(
                           height: 2,
                           width: 16,
-                          color: i < stepIdx ? AppColors.primary : AppColors.divider,
+                          color: i < stepIdx ? _primaryPurple : _bgLight,
                         ),
                     ],
                   ),
@@ -596,21 +714,49 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
   Widget _buildDetailsCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Детали', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.info_outline_rounded, size: 18, color: _primaryPurple),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Детали заказа',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: _darkText,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
           _detailRow(Icons.location_on_rounded, 'Адрес', _order!['address'] ?? 'Не указан'),
           _detailRow(Icons.calendar_today_rounded, 'Дата', _formatDate(_order!['orderDate'])),
           if (_order!['budget'] != null)
-            _detailRow(Icons.attach_money_rounded, 'Бюджет', '${_order!['budget']} ₽', isHighlight: true),
+            _detailRow(Icons.monetization_on_rounded, 'Бюджет', '${_order!['budget']} ₸', isHighlight: true),
           if (_order!['fulfillmentType'] != null)
             _detailRow(Icons.category_rounded, 'Тип', _fulfillmentLabel(_order!['fulfillmentType'])),
         ],
@@ -624,25 +770,33 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       child: Row(
         children: [
           Container(
-            width: 34, height: 34,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
+              color: _primaryPurple.withOpacity(0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 17, color: AppColors.primary),
+            child: Icon(icon, size: 17, color: _primaryPurple),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.textHint)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  color: _grayText,
+                ),
+              ),
               Text(
                 value,
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
                   fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w500,
-                  color: isHighlight ? AppColors.primary : AppColors.textPrimary,
+                  color: isHighlight ? _primaryPurple : _darkText,
                 ),
               ),
             ],
@@ -654,18 +808,54 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
   Widget _buildDescriptionCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Описание', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _primaryPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.description_rounded, size: 18, color: _primaryPurple),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Описание',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: _darkText,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          Text(_order!['description'], style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
+          Text(
+            _order!['description'],
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 13,
+              color: _grayText,
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );
@@ -685,24 +875,33 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [AppColors.primary.withOpacity(0.05), AppColors.secondary.withOpacity(0.05)],
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [_primaryPurple.withOpacity(0.05), _secondaryPurple.withOpacity(0.05)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _primaryPurple.withOpacity(0.15)),
         ),
         child: Row(
           children: [
             Container(
-              width: 50, height: 50,
+              width: 50,
+              height: 50,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: AppColors.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(
+                  colors: [_primaryPurple, _secondaryPurple],
+                ),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
                   cleanerName.isNotEmpty ? cleanerName[0].toUpperCase() : 'К',
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700, fontFamily: 'Poppins'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
               ),
             ),
@@ -711,18 +910,37 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Ваш клинер', style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.textSecondary)),
-                  Text(cleanerName, style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary)),
+                  const Text(
+                    'Ваш клинер',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: _grayText,
+                    ),
+                  ),
+                  Text(
+                    cleanerName,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: _darkText,
+                    ),
+                  ),
                 ],
               ),
             ),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: _primaryPurple.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+              child: const Icon(
+                Icons.chevron_right_rounded,
+                color: _primaryPurple,
+                size: 20,
+              ),
             ),
           ],
         ),
@@ -732,15 +950,58 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
 
   Widget _buildError() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline_rounded, size: 64, color: AppColors.error),
-          const SizedBox(height: 16),
-          Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Poppins', color: AppColors.textSecondary)),
-          const SizedBox(height: 20),
-          ElevatedButton(onPressed: _loadOrder, child: const Text('Повторить')),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _accentRed.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.error_outline_rounded, size: 48, color: _accentRed),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Ошибка загрузки',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: _darkText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color: _grayText,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadOrder,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text(
+                'Повторить',
+                style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                backgroundColor: _primaryPurple,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -752,18 +1013,36 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     final spec = OrderSpecificationDTO.fromJson(specJson);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 12, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEEF0F5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ExpansionTile(
         title: const Text(
           'Детали уборки',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: _darkText,
+            fontFamily: 'Poppins',
+          ),
         ),
-        leading: Icon(Icons.assignment, color: Theme.of(context).primaryColor),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _primaryPurple.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.assignment_rounded, size: 18, color: _primaryPurple),
+        ),
         initiallyExpanded: true,
         children: [
           Padding(
@@ -803,9 +1082,9 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                 if (spec.pricingMode != null)
                   _buildSpecDetailRow('Ценообразование', spec.pricingMode == 'FIXED' ? 'Фиксированная цена' : 'Торг', Icons.attach_money),
                 if (spec.price != null)
-                  _buildSpecDetailRow('Цена', '${spec.price!.toStringAsFixed(0)} ₽', Icons.attach_money, isHighlight: true),
+                  _buildSpecDetailRow('Цена', '${spec.price!.toStringAsFixed(0)} ₸', Icons.attach_money, isHighlight: true),
                 if (spec.maxPrice != null)
-                  _buildSpecDetailRow('Макс. цена', '${spec.maxPrice!.toStringAsFixed(0)} ₽', Icons.attach_money, isHighlight: true),
+                  _buildSpecDetailRow('Макс. цена', '${spec.maxPrice!.toStringAsFixed(0)} ₸', Icons.attach_money, isHighlight: true),
                 const Divider(height: 16),
                 if (spec.hasPets != null)
                   _buildSpecDetailRow('Животные', spec.hasPets! ? 'Есть' : 'Нет', Icons.pets),
@@ -815,9 +1094,24 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Заметки', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const Text(
+                          'Заметки',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            color: _darkText,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text(spec.notes!, style: const TextStyle(fontSize: 13)),
+                        Text(
+                          spec.notes!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: _grayText,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -835,7 +1129,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: _grayText),
           const SizedBox(width: 12),
           SizedBox(
             width: 100,
@@ -843,7 +1137,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: _grayText,
                 fontFamily: 'Poppins',
               ),
             ),
@@ -855,7 +1149,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isHighlight ? FontWeight.w700 : FontWeight.w500,
-                color: isHighlight ? AppColors.primary : AppColors.textPrimary,
+                color: isHighlight ? _primaryPurple : _darkText,
                 fontFamily: 'Poppins',
               ),
             ),
@@ -925,7 +1219,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     if (ds == null) return 'Не указана';
     try {
       final d = DateTime.parse(ds);
-      return '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}  ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+      return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}  ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     } catch (_) { return ds; }
   }
 

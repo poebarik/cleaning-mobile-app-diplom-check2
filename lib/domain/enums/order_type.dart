@@ -1,6 +1,7 @@
 enum OrderType {
   companyAssigned,
   marketplace,
+  directInvitation
 }
 
 extension OrderTypeExtension on OrderType {
@@ -10,6 +11,8 @@ extension OrderTypeExtension on OrderType {
         return 'COMPANY_ASSIGNED';
       case OrderType.marketplace:
         return 'MARKETPLACE';
+      case OrderType.directInvitation:
+        return 'DIRECT_INVITATION'; // ✅ Добавляем
     }
   }
 
@@ -19,6 +22,8 @@ extension OrderTypeExtension on OrderType {
         return OrderType.companyAssigned;
       case 'MARKETPLACE':
         return OrderType.marketplace;
+      case 'DIRECT_INVITATION': // ✅ Добавляем
+        return OrderType.directInvitation;
       default:
         return OrderType.companyAssigned;
     }

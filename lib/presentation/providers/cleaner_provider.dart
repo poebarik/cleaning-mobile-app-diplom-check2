@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/network/dio_client.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../data/models/cleaner/cleaner.dart';
+import '../../data/repositories/cleaner_repository.dart';
 import '../../data/repositories/order_repository.dart';
 import '../../domain/enums/order_action.dart';
 
@@ -126,3 +127,6 @@ extension CleanerStateExtension on CleanerState {
   }
 
 }
+final cleanerRepositoryProvider = Provider<CleanerRepository>((ref) {
+  return CleanerRepository();
+});

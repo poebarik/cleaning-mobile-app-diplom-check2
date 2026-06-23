@@ -1,4 +1,5 @@
-// lib/presentation/screens/client/draft_order/draft_order_screen.dart
+// lib/presentation/screens/client/draft_order/draft_order_screen.dart (обновленный)
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,8 +28,26 @@ import 'create_order_wizard/steps/step_8_inventory.dart';
 import 'create_order_wizard/steps/step_9_price_limit.dart';
 import 'create_order_wizard/steps/step_10_notes.dart';
 
+
 class DraftOrderScreen extends ConsumerStatefulWidget {
-  const DraftOrderScreen({super.key});
+  final String? initialCleaningType;
+  final String? initialTemplateName;
+  final int? serviceId;
+  final String? serviceName;
+  final double? servicePrice;
+  final String? serviceDescription;
+  final String? cleaningType;
+
+  const DraftOrderScreen({
+    super.key,
+    this.initialCleaningType,
+    this.initialTemplateName,
+    this.serviceId,
+    this.serviceName,
+    this.servicePrice,
+    this.serviceDescription,
+    this.cleaningType,
+  });
 
   @override
   ConsumerState<DraftOrderScreen> createState() => _DraftOrderScreenState();
@@ -40,6 +59,11 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
   OrderDraft? _currentDraft;
   bool _isLoading = true;
   bool _isSubmitting = false;
+  bool _initialParamsApplied = false;
+  int _refreshCounter = 0;
+
+  // ✅ Добавляем переменную для хранения названия услуги
+  String? _selectedServiceName;
 
   @override
   void initState() {
@@ -61,51 +85,115 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
     _initWizardFromDraft();
   }
 
+  // lib/presentation/screens/client/draft_order/draft_order_screen.dart
+
   void _initWizardFromDraft() {
     _wizardNotifier = OrderWizardNotifier(
       serviceId: _currentDraft?.serviceId ?? 1,
       address: _currentDraft?.address ?? '',
-      orderDate: _currentDraft?.orderDate ??
-          DateTime.now().add(const Duration(days: 1)),
+      orderDate: _currentDraft?.orderDate ?? DateTime.now().add(const Duration(days: 1)),
       cleanerId: _currentDraft?.cleanerId,
     );
 
     final d = _currentDraft;
-    if (d == null) return;
+    if (d == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _applyInitialParams();
+      });
+      return;
+    }
+
+    print('📸 ВОССТАНОВЛЕНИЕ ИЗ ЧЕРНОВИКА:');
+    print('  - cleaningType: ${d.cleaningType}');
+    print('  - serviceName: ${d.serviceName}');  // ✅ Добавляем
+
+    // ✅ Восстанавливаем serviceName из черновика
+    if (d.serviceName != null && d.serviceName!.isNotEmpty) {
+      _selectedServiceName = d.serviceName;
+      _wizardNotifier.updateServiceName(d.serviceName);
+    }
 
     if (d.creationType != null) {
-      _wizardNotifier.updateCreationType(
-        d.creationType == 'limitedBids'
-            ? OrderCreationType.limitedBids
-            : d.creationType == 'openMarket'
-            ? OrderCreationType.openMarket
-            : OrderCreationType.companyAssigned,
-      );
+      OrderCreationType type;
+      switch (d.creationType) {
+        case 'limitedBids':
+          type = OrderCreationType.limitedBids;
+          break;
+        case 'openMarket':
+          type = OrderCreationType.openMarket;
+          break;
+        case 'companyAssigned':
+          type = OrderCreationType.companyAssigned;
+          break;
+        case 'directInvitation':
+          type = OrderCreationType.directInvitation;
+          break;
+        default:
+          type = OrderCreationType.companyAssigned;
+      }
+      _wizardNotifier.updateCreationType(type);
     }
-    if (d.pricingMode != null) {
-      _wizardNotifier.updatePricingMode(
-        d.pricingMode == 'fixed' ? PricingMode.fixed : PricingMode.bidding,
-        fixedPrice: d.fixedPrice,
-      );
+
+    if (d.cleaningType != null && d.cleaningType!.isNotEmpty) {
+      _wizardNotifier.updateCleaningType(d.cleaningType!);
     }
-    if (d.locationType.isNotEmpty) {
-      _wizardNotifier.updateLocationType(d.locationType, d.locationCustom);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _applyInitialParams();
+    });
+  }
+
+  void _applyInitialParams() {
+    if (_initialParamsApplied) return;
+    _initialParamsApplied = true;
+
+    print('📸 ПРИМЕНЕНИЕ НАЧАЛЬНЫХ ПАРАМЕТРОВ:');
+    print('  - cleaningType: ${widget.cleaningType}');
+    print('  - serviceName: ${widget.serviceName}');
+    print('  - serviceId: ${widget.serviceId}');
+    print('  - servicePrice: ${widget.servicePrice}');
+
+    bool hasChanges = false;
+
+    // ✅ Сохраняем название услуги и обновляем Wizard
+    if (widget.serviceName != null && widget.serviceName!.isNotEmpty) {
+      _selectedServiceName = widget.serviceName;
+      _wizardNotifier.updateServiceName(widget.serviceName); // ✅ Сохраняем в Wizard
+      print('📸 Сохраняем название услуги: $_selectedServiceName');
+      hasChanges = true;
     }
-    if (d.cleaningType.isNotEmpty) {
-      _wizardNotifier.updateCleaningType(d.cleaningType);
+
+    // ✅ Приоритет: cleaningType > initialCleaningType
+    final cleaningType = widget.cleaningType ?? widget.initialCleaningType;
+
+    if (cleaningType != null && cleaningType.isNotEmpty) {
+      print('📸 Применяем cleaningType: $cleaningType');
+      _wizardNotifier.updateCleaningType(cleaningType);
+      hasChanges = true;
     }
-    if (d.area != null) _wizardNotifier.updateArea(d.area);
-    for (final r in d.rooms) _wizardNotifier.toggleRoom(r);
-    if (d.roomsCustom != null) _wizardNotifier.updateRoomsCustom(d.roomsCustom);
-    for (final s in d.additionalServices) {
-      _wizardNotifier.toggleAdditionalService(s);
+
+    // ✅ НЕ добавляем serviceName в заметки - теперь он отображается в шаге 5
+
+    if (widget.serviceId != null) {
+      print('📸 Применяем serviceId: ${widget.serviceId}');
+      _wizardNotifier.updateServiceId(widget.serviceId!);
+      hasChanges = true;
     }
-    for (final s in d.customServices) _wizardNotifier.addCustomService(s);
-    _wizardNotifier.updateInventory(d.inventory);
-    if (d.maxPrice != null) _wizardNotifier.updateMaxPrice(d.maxPrice);
-    if (d.notes != null) _wizardNotifier.updateNotes(d.notes);
-    if (d.imageObjectNames.isNotEmpty) {
-      _wizardNotifier.updateImages(d.imageObjectNames);
+
+    if (widget.servicePrice != null) {
+      print('📸 Применяем servicePrice: ${widget.servicePrice}');
+      _wizardNotifier.updatePricingMode(PricingMode.fixed);
+      _wizardNotifier.updateFixedPrice(widget.servicePrice!);
+      hasChanges = true;
+    }
+
+    _saveDraft();
+
+    if (hasChanges && mounted) {
+      setState(() {
+        _refreshCounter++;
+      });
+      print('📸 UI обновлен, counter: $_refreshCounter');
     }
   }
 
@@ -150,7 +238,12 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
                 style: TextStyle(color: Colors.redAccent)),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              Navigator.pop(ctx);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _applyInitialParams();
+              });
+            },
             child: const Text('Продолжить'),
           ),
         ],
@@ -160,9 +253,14 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
 
   Future<void> _saveDraft() async {
     final s = _wizardNotifier.state;
+    print('📸 СОХРАНЕНИЕ ЧЕРНОВИКА:');
+    print('  - cleaningType: ${s.cleaningType}');
+    print('  - notes: ${s.notes}');
+
     final draft = OrderDraft(
       id: _currentDraft?.id ?? _dataSource.generateId(),
       serviceId: s.serviceId,
+      serviceName: s.serviceName,
       address: s.address,
       orderDate: s.orderDate,
       updatedAt: DateTime.now(),
@@ -183,14 +281,17 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
       notes: s.notes,
       imageObjectNames: s.imageObjectNames ?? [],
     );
+
     await _dataSource.saveCurrentDraft(draft);
     _currentDraft = draft;
   }
 
-  // В _DraftOrderScreenState, исправьте метод _submitOrder:
-
   Future<void> _submitOrder() async {
     final wizardState = _wizardNotifier.state;
+
+    print('📸 ПЕРЕД ОТПРАВКОЙ ЗАКАЗА:');
+    print('  - creationType: ${wizardState.creationType}');
+    print('  - cleaningType: ${wizardState.cleaningType}');
 
     if (!wizardState.isValid) {
       CustomSnackbar.showError(context, 'Пожалуйста, заполните все обязательные поля');
@@ -203,22 +304,36 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
       final request = wizardState.toRequest();
 
       print('========== ОТПРАВКА ЗАКАЗА ==========');
-      print('Notes: ${request.description}');
-      print('ImageObjectNames: ${request.imageObjectNames}');
+      print('FulfillmentType: ${request.fulfillmentType}');
+      print('CreationType: ${wizardState.creationType}');
+      print('CleanerId: ${request.cleanerId}');
+      print('budget: ${request.budget}');
+      print('=====================================');
 
       final orderRepository = ref.read(orderRepositoryProvider);
       final order = await orderRepository.createOrderWithMode(request);
 
-      // Удаляем черновик
+      print('✅ Order created: ${order.id}');
+
+      await _saveDraft();
       await _dataSource.deleteCurrentDraft();
 
       if (mounted) {
         CustomSnackbar.showSuccess(context, 'Заказ успешно создан!');
-        // Переходим на страницу заказа, заменяя текущий экран
-        context.go('/order/${order.id}');
+
+        final isDirectInvitation = wizardState.creationType == OrderCreationType.directInvitation;
+
+        if (isDirectInvitation) {
+          context.go('/select-cleaner/${order.id}');
+        } else {
+          context.go('/order-details/${order.id}');
+        }
       }
     } catch (e) {
       print('❌ Ошибка создания заказа: $e');
+      if (e is DioException) {
+        print('Response: ${e.response?.data}');
+      }
       if (mounted) {
         CustomSnackbar.showError(context, 'Ошибка создания заказа: $e');
       }
@@ -238,7 +353,6 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
         initialStep: stepIndex,
         onSave: () async {
           await _saveDraft();
-          // Обновляем UI после сохранения
           if (mounted) {
             setState(() {});
           }
@@ -248,7 +362,6 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
     );
   }
 
-  // Вспомогательные методы для отображения текстов
   String _creationTypeText(OrderCreationType? t) {
     switch (t) {
       case OrderCreationType.limitedBids:
@@ -257,6 +370,8 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
         return 'Открытый рынок';
       case OrderCreationType.companyAssigned:
         return 'Выбор компании';
+      case OrderCreationType.directInvitation:
+        return 'Пригласить клинера';
       default:
         return '';
     }
@@ -292,6 +407,25 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
     return map[t] ?? t;
   }
 
+  // ✅ Метод для получения отображаемого текста типа уборки
+  String _getCleaningTypeDisplayText(String cleaningType) {
+    // Если есть название услуги - показываем его
+    if (_selectedServiceName != null && _selectedServiceName!.isNotEmpty) {
+      return _selectedServiceName!;
+    }
+
+    // Иначе показываем стандартное название
+    const map = {
+      'MAINTENANCE': 'Поддерживающая',
+      'DEEP_CLEANING': 'Генеральная',
+      'AFTER_RENOVATION': 'После ремонта',
+      'MOVE_IN': 'Перед заселением',
+      'MOVE_OUT': 'После выезда',
+      'CUSTOM': 'Индивидуальная',
+    };
+    return map[cleaningType] ?? cleaningType;
+  }
+
   String _inventoryText(String t) {
     const map = {
       'CLIENT': 'Мой инвентарь',
@@ -311,8 +445,7 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
 
   String _dateTimeText(DateTime dt) {
     final d = '${dt.day}.${dt.month}.${dt.year}';
-    final t =
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final t = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     return '$d, $t';
   }
 
@@ -324,6 +457,14 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
 
     final s = _wizardNotifier.state;
     final theme = Theme.of(context);
+
+    // ✅ Получаем отображаемый текст
+    final cleaningTypeDisplayText = _getCleaningTypeDisplayText(s.cleaningType);
+
+    print('📸 BUILD DraftOrderScreen:');
+    print('  - cleaningType: ${s.cleaningType}');
+    print('  - displayText: $cleaningTypeDisplayText');
+    print('  - serviceName: $_selectedServiceName');
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.4),
@@ -356,7 +497,6 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Секция: Основная информация (Адрес и Дата)
                 DraftSection(
                   title: 'Основная информация',
                   children: [
@@ -379,7 +519,6 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
 
                 const SizedBox(height: 20),
 
-                // Секция: Главное о задаче
                 DraftSection(
                   title: 'Главное о задаче',
                   children: [
@@ -407,10 +546,12 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
                       placeholder: 'Квартира, дом, офис...',
                       onTap: () => _openStepSheet(4),
                     ),
+                    // ✅ КАРТОЧКА ТИПА УБОРКИ - с отображением названия услуги
                     DraftCard(
+                      key: ValueKey('cleaningType_${s.cleaningType}_$_refreshCounter'),
                       icon: Icons.cleaning_services_outlined,
                       title: 'Тип уборки',
-                      value: _cleaningTypeText(s.cleaningType),
+                      value: cleaningTypeDisplayText, // ✅ Показываем название услуги
                       placeholder: 'Какая уборка нужна?',
                       onTap: () => _openStepSheet(5),
                     ),
@@ -467,7 +608,6 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
 
                 const SizedBox(height: 20),
 
-                // Секция: Дополнительно
                 DraftSection(
                   title: 'Дополнительно',
                   children: [
@@ -499,9 +639,9 @@ class _DraftOrderScreenState extends ConsumerState<DraftOrderScreen> {
   }
 }
 
-// В файле draft_order_screen.dart, исправленный класс _WizardBottomSheet:
-
-// В файле draft_order_screen.dart, исправленный класс _WizardBottomSheet:
+// ============================================================================
+// _WizardBottomSheet
+// ============================================================================
 
 class _WizardBottomSheet extends StatefulWidget {
   final OrderWizardNotifier wizardNotifier;
@@ -538,57 +678,7 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
     super.dispose();
   }
 
-  Future<void> _submitOrder() async {
-    final wizardState = widget.wizardNotifier.state;
-
-    if (!wizardState.isValid) {
-      CustomSnackbar.showError(context, 'Пожалуйста, заполните все обязательные поля');
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final request = wizardState.toRequest();
-
-      print('========== ОТПРАВКА ЗАКАЗА ==========');
-      print('Notes: ${request.description}');
-      print('ImageObjectNames: ${request.imageObjectNames}');
-
-      final orderRepository = widget.ref.read(orderRepositoryProvider);
-      final order = await orderRepository.createOrderWithMode(request);
-
-      // Сохраняем черновик
-      await widget.onSave();
-
-      if (mounted) {
-        CustomSnackbar.showSuccess(context, 'Заказ успешно создан!');
-
-        // ✅ Закрываем только bottom sheet
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        }
-
-        // Даем время для анимации закрытия bottom sheet
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        if (mounted) {
-          // ✅ Закрываем экран черновика через go_router
-          // Используем go_router для навигации напрямую к заказу
-          context.go('/order/${order.id}');
-        }
-      }
-    } catch (e) {
-      print('❌ Ошибка создания заказа: $e');
-      if (mounted) {
-        CustomSnackbar.showError(context, 'Ошибка создания заказа: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  void _nextStep() async {
+  Future<void> _nextStep() async {
     await widget.onSave();
 
     if (_currentStep < 11) {
@@ -598,7 +688,14 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
         curve: Curves.easeInOut,
       );
     } else {
-      await _submitOrder();
+      if (mounted) {
+        if (widget.wizardNotifier.state.isValid) {
+          CustomSnackbar.showSuccess(context, 'Все данные заполнены! Нажмите "Создать заказ"');
+          Navigator.pop(context);
+        } else {
+          CustomSnackbar.showError(context, 'Заполните все обязательные поля');
+        }
+      }
     }
   }
 
@@ -624,7 +721,6 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
     final steps = [
       StepAddress(notifier: widget.wizardNotifier, state: wizardState),
       StepDateTime(notifier: widget.wizardNotifier, state: wizardState),
-      Step1Preferences(notifier: widget.wizardNotifier, state: wizardState),
       Step2Pricing(notifier: widget.wizardNotifier, state: wizardState),
       Step3Location(notifier: widget.wizardNotifier, state: wizardState),
       Step4CleaningType(notifier: widget.wizardNotifier, state: wizardState),
@@ -634,6 +730,7 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
       Step8Inventory(notifier: widget.wizardNotifier, state: wizardState),
       Step9PriceLimit(notifier: widget.wizardNotifier, state: wizardState),
       Step10Notes(notifier: widget.wizardNotifier, state: wizardState),
+      Step1Preferences(notifier: widget.wizardNotifier, state: wizardState),
     ];
 
     return SafeArea(
@@ -645,7 +742,6 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
         ),
         child: Column(
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 12),
               width: 40,
@@ -655,13 +751,11 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            // Progress bar
             LinearProgressIndicator(
               value: (_currentStep + 1) / steps.length,
               backgroundColor: theme.colorScheme.surfaceVariant,
               valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
             ),
-            // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
@@ -697,7 +791,6 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
                 ],
               ),
             ),
-            // Page View
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -714,7 +807,6 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
                 },
               ),
             ),
-            // Navigation buttons
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -737,7 +829,7 @@ class _WizardBottomSheetState extends State<_WizardBottomSheet> {
                     child: CustomButton(
                       onPressed: _nextStep,
                       text: _currentStep == steps.length - 1
-                          ? (_isSubmitting ? 'Создание...' : 'Создать заказ')
+                          ? 'Готово'
                           : 'Далее',
                       isLoading: _isSubmitting,
                     ),

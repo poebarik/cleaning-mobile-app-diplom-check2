@@ -37,23 +37,35 @@ class Review {
   factory Review.fromJson(Map<String, dynamic> json) {
     print('📦 Парсинг отзыва: ${json['id']} - ${json['authorName']}');
 
+    // ✅ Получаем имя автора из разных полей
+    String authorName = json['authorName'] as String? ?? '';
+    if (authorName.isEmpty) {
+      authorName = json['clientName'] as String? ?? '';
+    }
+    if (authorName.isEmpty) {
+      authorName = json['cleanerName'] as String? ?? '';
+    }
+    if (authorName.isEmpty) {
+      authorName = 'Пользователь';
+    }
+
     return Review(
-      id: json['id'] ?? 0,
-      orderId: json['orderId'],
-      authorId: json['authorId'],
-      authorName: json['authorName'] ?? json['clientName'] ?? json['cleanerName'] ?? 'Пользователь',
-      targetUserId: json['targetUserId'],
-      clientName: json['clientName'],
-      cleanerName: json['cleanerName'],
-      rating: json['rating'] ?? 0,
-      comment: json['comment'] ?? '',
+      id: json['id'] as int? ?? 0,
+      orderId: json['orderId'] as int?,
+      authorId: json['authorId'] as int?,
+      authorName: authorName,
+      targetUserId: json['targetUserId'] as int?,
+      clientName: json['clientName'] as String?,
+      cleanerName: json['cleanerName'] as String?,
+      rating: json['rating'] as int? ?? 0,
+      comment: json['comment'] as String? ?? '',
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
-      reviewType: json['reviewType'] ?? 'CLIENT_TO_CLEANER',
-      imageUrl: json['imageUrl'],
-      authorAvatarUrl: json['authorAvatarUrl'],
-      targetAvatarUrl: json['targetAvatarUrl'],
+      reviewType: json['reviewType'] as String? ?? 'CLIENT_TO_CLEANER',
+      imageUrl: json['imageUrl'] as String?,
+      authorAvatarUrl: json['authorAvatarUrl'] as String?,
+      targetAvatarUrl: json['targetAvatarUrl'] as String?,
       imageObjectNames: json['imageObjectNames'] != null
           ? List<String>.from(json['imageObjectNames'])
           : null,

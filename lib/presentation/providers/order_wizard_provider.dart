@@ -1,10 +1,11 @@
 // lib/presentation/providers/order_wizard_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/order/unified_order_request.dart';
+import '../../data/models/order/order_specification_dto.dart';
 
 // Enums for wizard steps
-enum OrderCreationType { limitedBids, openMarket, companyAssigned }
 enum PricingMode { fixed, bidding }
+enum OrderCreationType { limitedBids, openMarket, companyAssigned, directInvitation }
 
 class OrderWizardState {
   // Step 1: Preferences
@@ -48,6 +49,9 @@ class OrderWizardState {
   final DateTime orderDate;
   final int? cleanerId;
 
+  // ✅ Добавляем название услуги
+  final String? serviceName;
+
   const OrderWizardState({
     this.creationType,
     this.pricingMode,
@@ -68,6 +72,7 @@ class OrderWizardState {
     required this.address,
     required this.orderDate,
     this.cleanerId,
+    this.serviceName,
   });
 
   OrderWizardState copyWith({
@@ -90,6 +95,7 @@ class OrderWizardState {
     String? address,
     DateTime? orderDate,
     int? cleanerId,
+    String? serviceName, // ✅ Добавляем
   }) {
     return OrderWizardState(
       creationType: creationType ?? this.creationType,
@@ -111,36 +117,82 @@ class OrderWizardState {
       address: address ?? this.address,
       orderDate: orderDate ?? this.orderDate,
       cleanerId: cleanerId ?? this.cleanerId,
+      serviceName: serviceName ?? this.serviceName, // ✅ Добавляем
     );
   }
 
   bool get isValid {
-    if (address.isEmpty) return false;
-    if (orderDate.isBefore(DateTime.now())) return false;
-    if (creationType == null) return false;
+    if (address.isEmpty) {
+      print('❌ Address is empty');
+      return false;
+    }
+    if (orderDate.isBefore(DateTime.now())) {
+      print('❌ Order date is in the past');
+      return false;
+    }
+    if (creationType == null) {
+      print('❌ Creation type is null');
+      return false;
+    }
+
+    // Для MARKETPLACE
     if (creationType == OrderCreationType.limitedBids ||
         creationType == OrderCreationType.openMarket) {
-      if (pricingMode == null) return false;
-      if (pricingMode == PricingMode.fixed && fixedPrice == null) return false;
+      if (pricingMode == null) {
+        print('❌ Pricing mode is null for MARKETPLACE');
+        return false;
+      }
+      if (pricingMode == PricingMode.fixed && fixedPrice == null) {
+        print('❌ Fixed price is null for FIXED mode');
+        return false;
+      }
     }
+
+    // Для DIRECT_INVITATION - cleanerId может быть null ДО выбора клинера
+    if (creationType == OrderCreationType.directInvitation) {
+      print('⚠️ DIRECT_INVITATION - cleanerId will be set later');
+      return true;
+    }
+
+    print('✅ Order is valid');
     return true;
   }
 
   String get fulfillmentType {
-    switch (creationType) {
+    final type = creationType;
+    print('🔍 Computing fulfillmentType for: $type');
+
+    switch (type) {
       case OrderCreationType.limitedBids:
       case OrderCreationType.openMarket:
         return 'MARKETPLACE';
       case OrderCreationType.companyAssigned:
         return 'COMPANY_ASSIGNED';
+      case OrderCreationType.directInvitation:
+        return 'DIRECT_INVITATION';
       default:
         return 'MARKETPLACE';
     }
   }
 
   UnifiedOrderRequest toRequest() {
-    print('📸 Creating order request with images: $imageObjectNames');
-    print('📍 Location type: $locationType, custom: $locationCustom');
+    print('📸 Creating order request');
+    print('  - creationType: $creationType');
+    print('  - fulfillmentType: $fulfillmentType');
+    print('  - cleanerId: $cleanerId');
+    print('  - fixedPrice: $fixedPrice');
+    print('  - maxPrice: $maxPrice');
+
+    double? budgetValue;
+    if (creationType == OrderCreationType.directInvitation) {
+      budgetValue = fixedPrice ?? maxPrice ?? 0;
+    } else if (pricingMode == PricingMode.fixed) {
+      budgetValue = fixedPrice;
+    } else if (pricingMode == PricingMode.bidding) {
+      budgetValue = maxPrice;
+    }
+
+    print('  - computed budget: $budgetValue');
 
     return UnifiedOrderRequest(
       serviceId: serviceId,
@@ -148,7 +200,7 @@ class OrderWizardState {
       orderDate: orderDate,
       fulfillmentType: fulfillmentType,
       cleanerId: cleanerId,
-      budget: pricingMode == PricingMode.fixed ? fixedPrice : null,
+      budget: budgetValue,
       description: notes,
       imageObjectNames: imageObjectNames.isNotEmpty ? imageObjectNames : null,
       specification: OrderSpecification(
@@ -188,15 +240,24 @@ class OrderWizardNotifier extends StateNotifier<OrderWizardState> {
     cleanerId: cleanerId,
   ));
 
+  // ─── Обновление типа создания ──────────────────────────────────
   void updateCreationType(OrderCreationType type) {
+    print('🔍 Updating creation type to: $type');
     state = state.copyWith(creationType: type);
   }
 
+  // ─── Обновление способа ценообразования ──────────────────────
   void updatePricingMode(PricingMode mode, {double? fixedPrice}) {
-    state = state.copyWith(pricingMode: mode, fixedPrice: fixedPrice);
+    print('📸 updatePricingMode: $mode, fixedPrice: $fixedPrice');
+    state = state.copyWith(
+      pricingMode: mode,
+      fixedPrice: fixedPrice,
+    );
   }
 
+  // ─── Обновление типа локации ──────────────────────────────────
   void updateLocationType(String type, [String? custom]) {
+    print('📸 updateLocationType: $type, custom: $custom');
     if (type != 'CUSTOM') {
       state = state.copyWith(
         locationType: type,
@@ -211,20 +272,26 @@ class OrderWizardNotifier extends StateNotifier<OrderWizardState> {
   }
 
   void updateLocationCustom(String custom) {
+    print('📸 updateLocationCustom: $custom');
     state = state.copyWith(
       locationType: 'CUSTOM',
       locationCustom: custom.isNotEmpty ? custom : null,
     );
   }
 
-  void updateCleaningType(String type) {
-    state = state.copyWith(cleaningType: type);
+  // ─── Обновление типа уборки ──────────────────────────────────
+  void updateCleaningType(String cleaningType) {
+    print('📸 updateCleaningType: $cleaningType');
+    state = state.copyWith(cleaningType: cleaningType);
   }
 
+  // ─── Обновление площади ──────────────────────────────────────
   void updateArea(int? area) {
+    print('📸 updateArea: $area');
     state = state.copyWith(area: area);
   }
 
+  // ─── Обновление комнат ────────────────────────────────────────
   void toggleRoom(String room) {
     final newRooms = List<String>.from(state.rooms);
     if (newRooms.contains(room)) {
@@ -236,9 +303,11 @@ class OrderWizardNotifier extends StateNotifier<OrderWizardState> {
   }
 
   void updateRoomsCustom(String? custom) {
+    print('📸 updateRoomsCustom: $custom');
     state = state.copyWith(roomsCustom: custom);
   }
 
+  // ─── Обновление дополнительных услуг ────────────────────────
   void toggleAdditionalService(String service) {
     final newServices = List<String>.from(state.additionalServices);
     if (newServices.contains(service)) {
@@ -261,29 +330,64 @@ class OrderWizardNotifier extends StateNotifier<OrderWizardState> {
     state = state.copyWith(customServices: newServices);
   }
 
+  // ─── Обновление инвентаря ────────────────────────────────────
   void updateInventory(String inventory) {
+    print('📸 updateInventory: $inventory');
     state = state.copyWith(inventory: inventory);
   }
 
+  // ─── Обновление максимальной цены ────────────────────────────
   void updateMaxPrice(double? price) {
+    print('📸 updateMaxPrice: $price');
     state = state.copyWith(maxPrice: price);
   }
 
+  // ─── Обновление заметок ──────────────────────────────────────
   void updateNotes(String? notes) {
+    print('📸 updateNotes: $notes');
     state = state.copyWith(notes: notes);
   }
 
+  // ─── Обновление адреса ────────────────────────────────────────
   void updateAddress(String address) {
+    print('📸 updateAddress: $address');
     state = state.copyWith(address: address);
   }
 
+  // ─── Обновление даты ─────────────────────────────────────────
   void updateOrderDate(DateTime date) {
+    print('📸 updateOrderDate: $date');
     state = state.copyWith(orderDate: date);
   }
 
+  // ─── Обновление изображений ──────────────────────────────────
   void updateImages(List<String> images) {
-    print('📸 Updating images in wizard: $images');
+    print('📸 updateImages: $images');
     state = state.copyWith(imageObjectNames: images);
+  }
+
+  // ─── Обновление ID услуги ────────────────────────────────────
+  void updateServiceId(int serviceId) {
+    print('📸 updateServiceId: $serviceId');
+    state = state.copyWith(serviceId: serviceId);
+  }
+
+  // ─── Обновление фиксированной цены ──────────────────────────
+  void updateFixedPrice(double price) {
+    print('📸 updateFixedPrice: $price');
+    state = state.copyWith(fixedPrice: price);
+  }
+
+  // ─── Обновление ID клинера ──────────────────────────────────
+  void updateCleanerId(int? cleanerId) {
+    print('📸 updateCleanerId: $cleanerId');
+    state = state.copyWith(cleanerId: cleanerId);
+  }
+
+  // ✅ НОВЫЙ МЕТОД: Обновление названия услуги
+  void updateServiceName(String? serviceName) {
+    print('📸 updateServiceName: $serviceName');
+    state = state.copyWith(serviceName: serviceName);
   }
 }
 
@@ -301,3 +405,9 @@ OrderWizardNotifier createOrderWizardNotifier({
     cleanerId: cleanerId,
   );
 }
+
+// ✅ Provider для доступа к состоянию заказа
+final orderWizardProvider = StateNotifierProvider<OrderWizardNotifier, OrderWizardState>((ref) {
+  // Этот провайдер будет переопределен при создании
+  throw UnimplementedError('Use createOrderWizardNotifier factory');
+});

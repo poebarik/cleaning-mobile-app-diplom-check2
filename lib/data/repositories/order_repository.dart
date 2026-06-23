@@ -1,5 +1,6 @@
-import 'dart:convert';
+// lib/data/repositories/order_repository.dart
 
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../domain/enums/order_action.dart';
 import '../models/order/order.dart';
@@ -13,88 +14,35 @@ class OrderRepository {
   // ✅ Создание заказа
   Future<Order> createOrderWithMode(UnifiedOrderRequest request) async {
     try {
-      final json = request.toJson();
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('📤 SENDING ORDER REQUEST:');
-      print('📤 URL: ${ApiConstants.baseUrl}/orders/create-with-mode');
-      print('📤 Body: ${jsonEncode(json)}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('  - fulfillmentType: ${request.fulfillmentType}');
+      print('  - cleanerId: ${request.cleanerId}');
+      print('  - budget: ${request.budget}');
 
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/orders/create-with-mode',
-        data: json,
+        ApiConstants.createOrderWithMode,
+        data: request.toJson(),
       );
 
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('✅ RESPONSE RECEIVED:');
-      print('✅ Status: ${response.statusCode}');
-      print('✅ Headers: ${response.headers}');
-      print('✅ Data: ${response.data}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📥 ORDER RESPONSE:');
+      print('  - status: ${response.statusCode}');
+      print('  - data: ${response.data}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Проверяем структуру ответа
-        dynamic responseData = response.data;
-
-        // Если ответ обернут в data
-        if (responseData is Map && responseData.containsKey('data')) {
-          responseData = responseData['data'];
-        }
-
-        print('✅ Parsed order data: $responseData');
-
-        return Order.fromJson(responseData);
-      } else {
-        throw Exception('Failed to create order: ${response.statusCode} - ${response.data}');
-      }
+      return Order.fromJson(response.data);
     } catch (e) {
-      print('❌ Error in createOrderWithMode: $e');
+      print('❌ Error creating order: $e');
       if (e is DioException) {
-        print('❌ Response data: ${e.response?.data}');
-        print('❌ Response status: ${e.response?.statusCode}');
-        if (e.response?.data is Map) {
-          final errorData = e.response?.data as Map;
-          print('❌ Error message: ${errorData['message']}');
-        }
+        print('Response data: ${e.response?.data}');
       }
       rethrow;
     }
   }
 
-  // ✅ Выполнение действия над заказом
-  Future<void> executeAction(
-      int orderId,
-      OrderAction action,
-      Map<String, dynamic> payload,
-      ) async {
-    final url = '/orders/$orderId/action';
-
-    final requestData = {
-      'action': action.value,
-      'payload': payload,
-    };
-
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('📡 EXECUTE ACTION - URL: ${ApiConstants.baseUrl}$url');
-    print('📡 EXECUTE ACTION - Action: ${action.value}');
-    print('📡 EXECUTE ACTION - Full request: ${jsonEncode(requestData)}');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    final response = await _dio.post(
-      '${ApiConstants.baseUrl}$url',
-      data: requestData,
-    );
-
-    print('✅ Action executed, status: ${response.statusCode}');
-    print('✅ Response data: ${response.data}');
-  }
-
-
   // ✅ Получение открытых маркетплейс заказов
   Future<List<Order>> getOpenMarketplaceOrders() async {
     try {
       final response = await _dio.get(
-        '${ApiConstants.baseUrl}/marketplace/orders/open',
+        ApiConstants.openMarketplaceOrders,
       );
 
       print('✅ Open marketplace orders response: ${response.statusCode}');
@@ -113,11 +61,11 @@ class OrderRepository {
     }
   }
 
-  // ✅ Получение заказов клиента
+  // ✅ Получение заказов текущего клиента
   Future<List<Order>> getClientOrders() async {
     try {
       final response = await _dio.get(
-        '${ApiConstants.baseUrl}${ApiConstants.clientOrders}',
+        ApiConstants.clientOrders,
       );
 
       if (response.data is List) {
@@ -132,11 +80,11 @@ class OrderRepository {
     }
   }
 
-  // ✅ Получение заказов клинера
+  // ✅ Получение заказов текущего клинера
   Future<List<Order>> getCleanerOrders() async {
     try {
       final response = await _dio.get(
-        '${ApiConstants.baseUrl}${ApiConstants.cleanerOrders}',
+        ApiConstants.cleanerOrders,
       );
 
       if (response.data is List) {
@@ -151,11 +99,131 @@ class OrderRepository {
     }
   }
 
+  // ✅ Получение заказов по ID клиента (для просмотра профиля)
+  Future<List<Order>> getClientOrdersById(int clientId) async {
+    try {
+      final response = await _dio.get('/orders/client/$clientId');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((e) => Order.fromJson(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading client orders by id: $e');
+      return [];
+    }
+  }
+
+  // ✅ Получение заказов по ID клинера (для просмотра профиля)
+  // lib/data/repositories/order_repository.dart
+
+  Future<List<Order>> getCleanerOrdersById(int cleanerId) async {
+    try {
+      final response = await _dio.get('/orders/cleaner/$cleanerId');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((e) => Order.fromJson(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading cleaner orders by id: $e');
+      return [];
+    }
+  }
+
+  // ✅ Получение завершенных заказов клиента
+  Future<List<Order>> getCompletedClientOrders(int clientId) async {
+    try {
+      final response = await _dio.get('/orders/client/$clientId/completed');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((e) => Order.fromJson(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading completed client orders: $e');
+      return [];
+    }
+  }
+
+  // ✅ Получение завершенных заказов клинера
+  Future<List<Order>> getCompletedCleanerOrders(int cleanerId) async {
+    try {
+      final response = await _dio.get('/orders/cleaner/$cleanerId/completed');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((e) => Order.fromJson(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading completed cleaner orders: $e');
+      return [];
+    }
+  }
+
   // ✅ Получение деталей заказа
   Future<Order> getOrderById(int id) async {
-    final response = await _dio.get(
-      '${ApiConstants.baseUrl}/orders/$id',
-    );
+    final response = await _dio.get('/orders/$id');
     return Order.fromJson(response.data);
+  }
+
+  // ✅ Выполнение действия над заказом
+  Future<void> executeAction(int orderId, OrderAction action, Map<String, dynamic> payload) async {
+    try {
+      await _dio.post(
+        '/orders/$orderId/action',
+        data: {
+          'action': action.value,
+          'payload': payload,
+        },
+      );
+    } catch (e) {
+      print('❌ Ошибка выполнения действия: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ Отправка приглашения
+  Future<void> sendInvitation({
+    required int orderId,
+    required int cleanerId,
+    required double proposedPrice,
+    required String message,
+  }) async {
+    try {
+      await _dio.post(
+        '/orders/$orderId/invitations',
+        data: {
+          'cleanerId': cleanerId,
+          'proposedPrice': proposedPrice,
+          'message': message,
+        },
+      );
+    } catch (e) {
+      print('❌ Ошибка отправки приглашения: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ Получить userId по cleanerId (используем getCleanerOrdersById)
+  Future<int?> getUserIdByCleanerId(int cleanerId) async {
+    try {
+      final orders = await getCleanerOrdersById(cleanerId);
+      if (orders.isNotEmpty) {
+        // Из первого заказа берем userId
+        final userId = orders.first.userId;
+        print('✅ Найден userId: $userId для cleanerId: $cleanerId');
+        return userId;
+      }
+      print('⚠️ Заказы не найдены для cleanerId: $cleanerId');
+      return null;
+    } catch (e) {
+      print('❌ Ошибка получения userId: $e');
+      return null;
+    }
   }
 }

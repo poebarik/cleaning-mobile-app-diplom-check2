@@ -1,5 +1,9 @@
+// lib/presentation/providers/auth_provider.dart
+
 import 'package:cleaning_mobile_application/presentation/providers/usecase_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/models/user/user.dart';
+import '../../domain/enums/user_role.dart';
 import '../../domain/usecases/auth/login_usecase.dart';
 import '../../domain/usecases/auth/register_usecase.dart';
 import '../../domain/usecases/auth/logout_usecase.dart';
@@ -21,7 +25,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       this._loginUseCase,
       this._registerUseCase,
       this._logoutUseCase,
-      ) : super(const AuthStateUnauthenticated()); // Изменено с initial на Unauthenticated
+      ) : super(const AuthStateUnauthenticated());
 
   Future<void> login(String email, String password) async {
     state = const AuthStateLoading();
@@ -29,8 +33,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     result.fold(
           (failure) => state = AuthStateError(failure.message),
           (user) {
-        print('✅ Login success: role=${user.role}, cleanerId=${user.cleanerId}');
-        state = AuthStateAuthenticated(user);
+        // ✅ user уже должен быть UserEntity, если LoginUseCase возвращает UserEntity
+        // Если нет - конвертируем
+        final userEntity = user is UserEntity
+            ? user
+            : _convertUserToEntity(user as User);
+
+        print('✅ Login success:');
+        print('  - id: ${userEntity.id}');
+        print('  - avatar: ${userEntity.avatar}');
+        state = AuthStateAuthenticated(user: userEntity);
       },
     );
   }
@@ -40,7 +52,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final result = await _registerUseCase.execute(data);
     result.fold(
           (failure) => state = AuthStateError(failure.message),
-          (user) => state = AuthStateAuthenticated(user),
+          (user) {
+        final userEntity = user is UserEntity
+            ? user
+            : _convertUserToEntity(user as User);
+        state = AuthStateAuthenticated(user: userEntity);
+      },
     );
   }
 
@@ -49,17 +66,66 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthStateUnauthenticated();
   }
 
-  void checkAuthStatus() async {
+  Future<bool> checkAuthStatus() async {
     final hasToken = await _logoutUseCase.hasToken();
     if (hasToken) {
-      state = const AuthStateAuthenticated(null);
+      return true;
     } else {
       state = const AuthStateUnauthenticated();
+      return false;
+    }
+  }
+
+  void updateUser(UserEntity user) {
+    print('🔄 Updating user:');
+    print('  - id: ${user.id}');
+    print('  - avatar: ${user.avatar}');
+    state = AuthStateAuthenticated(user: user);
+  }
+
+  // ─── КОНВЕРТЕР User → UserEntity ─────────────────────────────────
+
+  UserEntity _convertUserToEntity(User user) {
+    print('📸 Converting User to UserEntity:');
+    print('  - User.avatarUrl: ${user.avatarUrl}');
+
+    return UserEntity(
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+      role: _stringToUserRole(user.role),
+      isActive: !user.isBlocked,
+      avatar: user.avatarUrl,
+      rating: user.rating,
+      completedOrders: user.completedOrders,
+      cleanerId: user.cleanerId,
+      description: user.description,
+    );
+  }
+
+  UserRole _stringToUserRole(String role) {
+    switch (role.toUpperCase()) {
+      case 'CLIENT': return UserRole.client;
+      case 'CLEANER': return UserRole.cleaner;
+      case 'MANAGER': return UserRole.manager;
+      case 'ADMIN': return UserRole.admin;
+      default: return UserRole.client;
+    }
+  }
+
+  String _userRoleToString(UserRole role) {
+    switch (role) {
+      case UserRole.client: return 'CLIENT';
+      case UserRole.cleaner: return 'CLEANER';
+      case UserRole.manager: return 'MANAGER';
+      case UserRole.admin: return 'ADMIN';
     }
   }
 }
 
-// Определяем все классы состояния
+// ─── СОСТОЯНИЯ ──────────────────────────────────────────────────────
+
 sealed class AuthState {
   const AuthState();
 }
@@ -69,9 +135,9 @@ class AuthStateLoading extends AuthState {
 }
 
 class AuthStateAuthenticated extends AuthState {
-  final UserEntity? user;
+  final UserEntity user;
 
-  const AuthStateAuthenticated(this.user);
+  const AuthStateAuthenticated({required this.user});
 }
 
 class AuthStateUnauthenticated extends AuthState {
@@ -84,7 +150,6 @@ class AuthStateError extends AuthState {
   const AuthStateError(this.error);
 }
 
-// Extension методы для удобной работы с состоянием
 extension AuthStateExtension on AuthState {
   bool get isLoading => this is AuthStateLoading;
   bool get isAuthenticated => this is AuthStateAuthenticated;

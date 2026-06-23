@@ -1,6 +1,8 @@
+// lib/domain/enums/order_action.dart
 enum OrderAction {
   respond,
   selectCleaner,
+  sendInvitation,  // ✅ ДОБАВЛЯЕМ
   acceptInvitation,
   declineInvitation,
   counterOffer,
@@ -19,6 +21,8 @@ extension OrderActionExtension on OrderAction {
         return 'RESPOND';
       case OrderAction.selectCleaner:
         return 'SELECT_CLEANER';
+      case OrderAction.sendInvitation:  // ✅ ДОБАВЛЯЕМ
+        return 'SEND_INVITATION';
       case OrderAction.acceptInvitation:
         return 'ACCEPT_INVITATION';
       case OrderAction.declineInvitation:
@@ -46,6 +50,8 @@ extension OrderActionExtension on OrderAction {
         return OrderAction.respond;
       case 'SELECT_CLEANER':
         return OrderAction.selectCleaner;
+      case 'SEND_INVITATION':  // ✅ ДОБАВЛЯЕМ
+        return OrderAction.sendInvitation;
       case 'ACCEPT_INVITATION':
         return OrderAction.acceptInvitation;
       case 'DECLINE_INVITATION':

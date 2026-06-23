@@ -19,14 +19,13 @@ final profileProvider = FutureProvider.family<User, int>((ref, userId) async {
   return await repository.getUserProfile(userId);
 });
 
-// ✅ ИСПРАВЛЕННЫЙ ПРОВАЙДЕР - правильно обрабатывает RatingStatsDTO
+// ✅ Используем обновленный ReviewRepository
 final profileReviewsProvider = FutureProvider.family<List<Review>, int>((ref, userId) async {
   print('📊 profileReviewsProvider вызван для userId: $userId');
 
   final repository = ref.read(reviewRepositoryProvider);
 
   try {
-    // Этот метод должен правильно обработать ответ от бэкенда
     final reviews = await repository.getUserReviews(userId);
     print('✅ Загружено ${reviews.length} отзывов для userId=$userId');
     return reviews;
